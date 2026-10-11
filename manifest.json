@@ -1,0 +1,18 @@
+
+{
+  "id": "./",
+  "name": "Cedi to Yuan",
+  "short_name": "Cedi to Yuan",
+  "description": "Request Chinese yuan and Ghana cedi exchanges through WhatsApp.",
+  "lang": "en",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f8f6",
+  "theme_color": "#087f5b",
+  "categories": [
+    "finance",
+    "business"
+  ]
+}
