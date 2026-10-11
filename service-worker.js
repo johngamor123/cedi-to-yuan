@@ -1,14 +1,15 @@
-
 "use strict";
 
-const CACHE_NAME = "cedi-to-yuan-shell-v1";
+const CACHE_NAME = "cedi-to-yuan-shell-v3";
 
 const APP_FILES = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
-  "./manifest.json"
+  "./manifest.json",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -24,8 +25,10 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((cacheNames) => Promise.all(
         cacheNames
-          .filter((name) => name.startsWith("cedi-to-yuan-shell-") &&
-                            name !== CACHE_NAME)
+          .filter((name) =>
+            name.startsWith("cedi-to-yuan-shell-") &&
+            name !== CACHE_NAME
+          )
           .map((name) => caches.delete(name))
       ))
       .then(() => self.clients.claim())
@@ -36,7 +39,6 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Only handle same-origin GET requests.
   if (
     request.method !== "GET" ||
     url.origin !== self.location.origin
@@ -44,8 +46,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // For navigation, try the network first so customers can get
-  // the latest published page. Use the cached page if offline.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
@@ -66,8 +66,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // For core assets, prefer the latest network response and
-  // fall back to the cache when offline.
   event.respondWith(
     fetch(request)
       .then((response) => {
