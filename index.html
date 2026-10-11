@@ -1,0 +1,180 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#087f5b">
+  <meta name="description" content="Buy Chinese yuan with Ghana cedis or sell yuan for Ghana cedis.">
+  <title>Cedi to Yuan</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#" class="brand" data-screen="homeScreen">
+      <span class="brand-icon">¥</span>
+      <span>Cedi to Yuan<small>Currency Exchange</small></span>
+    </a>
+    <button class="support-button" id="headerHelpButton">Help</button>
+  </header>
+
+  <main>
+    <section class="screen active" id="homeScreen">
+      <div class="hero">
+        <span class="eyebrow">GHANA ⇄ CHINA</span>
+        <h1>Your Cedis.<br>Your Yuan.</h1>
+        <p>Buy Chinese yuan or sell yuan for Ghana cedis.</p>
+        <div class="hero-actions">
+          <button class="button button-gold" id="homeBuyButton">Buy Yuan</button>
+          <button class="button button-outline" id="homeSellButton">Sell Yuan</button>
+        </div>
+      </div>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div><span class="eyebrow">EXCHANGE RATES</span><h2>Today's rates</h2></div>
+          <span class="rate-dot">● Rates</span>
+        </div>
+        <div class="rate-grid">
+          <article class="rate-card">
+            <span>You buy yuan</span>
+            <strong id="homeBuyRate">—</strong>
+            <small>GH₵1 gives you this much yuan</small>
+          </article>
+          <article class="rate-card">
+            <span>You sell yuan</span>
+            <strong id="homeSellRate">—</strong>
+            <small>Each ¥1 gives you this much in cedis</small>
+          </article>
+        </div>
+        <p class="small-note" id="homeRateDetails">Choose an exchange to calculate your amount.</p>
+        <button class="text-button" id="homeRatesButton">Calculate exchange →</button>
+      </section>
+
+      <section class="panel">
+        <span class="eyebrow">GET STARTED</span>
+        <h2>How it works</h2>
+        <div class="steps">
+          <div class="step"><span>1</span><div><strong>Choose your exchange</strong><p>Buy yuan with cedis or sell yuan for cedis.</p></div></div>
+          <div class="step"><span>2</span><div><strong>Enter your amount</strong><p>See the estimated amount using the displayed rate.</p></div></div>
+          <div class="step"><span>3</span><div><strong>Send your request</strong><p>Continue on WhatsApp to arrange the exchange.</p></div></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <span class="eyebrow">NEED ANSWERS?</span>
+        <h2>Frequently asked questions</h2>
+        <div class="faq-list">
+          <details><summary>How do I buy yuan?</summary><p>Choose Buy Yuan, enter the Ghana cedi amount and your details, then send your request on WhatsApp. You pay cedis and receive yuan after the exchange is confirmed.</p></details>
+          <details><summary>How do I sell yuan?</summary><p>Choose Sell Yuan, enter the yuan amount and your details, then send your request on WhatsApp. You provide yuan and receive Ghana cedis after the exchange is confirmed.</p></details>
+          <details><summary>How much will I receive?</summary><p>Use the calculator to estimate your exchange using the displayed rate. Confirm the amount and availability before completing your exchange.</p></details>
+          <details><summary>How do I complete my exchange?</summary><p>Send your request through WhatsApp and follow the instructions agreed with the exchange provider.</p></details>
+        </div>
+        <button class="button button-green full-width" id="homeHelpButton">Contact us on WhatsApp</button>
+      </section>
+    </section>
+
+    <section class="screen" id="buyScreen">
+      <div class="page-heading"><span class="eyebrow">GHANA CEDIS → CHINESE YUAN</span><h1>Buy Yuan</h1><p>Pay in Ghana cedis and receive Chinese yuan.</p></div>
+      <div class="panel">
+        <div class="simple-rate"><span>Buy rate</span><strong id="buyScreenRate">—</strong></div>
+        <button class="button button-green full-width" id="buyContinue">Calculate and buy yuan</button>
+      </div>
+    </section>
+
+    <section class="screen" id="sellScreen">
+      <div class="page-heading"><span class="eyebrow">CHINESE YUAN → GHANA CEDIS</span><h1>Sell Yuan</h1><p>Exchange your Chinese yuan for Ghana cedis.</p></div>
+      <div class="panel">
+        <div class="simple-rate"><span>Sell rate</span><strong id="sellScreenRate">—</strong></div>
+        <button class="button button-green full-width" id="sellContinue">Calculate and sell yuan</button>
+      </div>
+    </section>
+
+    <section class="screen" id="liveRatesScreen">
+      <div class="page-heading"><span class="eyebrow">EXCHANGE CALCULATOR</span><h1>Calculate your exchange</h1><p>Choose a direction and enter your amount.</p></div>
+      <div class="panel">
+        <label for="liveDirection">I want to</label>
+        <select id="liveDirection">
+          <option value="buy">Buy yuan with Ghana cedis</option>
+          <option value="sell">Sell yuan for Ghana cedis</option>
+        </select>
+        <label for="liveAmount" id="liveAmountLabel">Amount in Ghana cedis (GH₵)</label>
+        <div class="amount-input"><span id="liveCurrencyPrefix">GH₵</span><input id="liveAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter amount"></div>
+        <div class="result-box"><span>Estimated amount</span><strong id="liveResult">¥0.00</strong><small id="liveCalculationNote">Based on the displayed rate.</small></div>
+        <button class="button button-green full-width" id="liveContinueButton">Continue</button>
+        <button class="button button-light full-width" id="liveHelpButton">Ask a question</button>
+      </div>
+      <div class="panel">
+        <h2>Current rates</h2>
+        <div class="simple-rate"><span>Buy yuan</span><strong id="liveBuyRate">—</strong></div>
+        <div class="simple-rate"><span>Sell yuan</span><strong id="liveSellRate">—</strong></div>
+      </div>
+    </section>
+
+    <section class="screen" id="orderScreen">
+      <div class="page-heading"><span class="eyebrow">EXCHANGE REQUEST</span><h1 id="orderTitle">Buy Yuan</h1><p id="orderSubtitle">Enter your details to continue.</p></div>
+      <form class="panel form" id="orderForm">
+        <div class="simple-rate"><span>Rate</span><strong id="formRateStatus">—</strong></div>
+
+        <label for="amount" id="amountLabel">Amount in Ghana cedis</label>
+        <div class="amount-input"><span id="currencyPrefix">GH₵</span><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div>
+        <div class="estimate-box"><span>You will receive approximately</span><strong id="estimateValue">—</strong><small id="estimateNote">Calculated using the displayed rate.</small></div>
+
+        <label for="customerName">Your name</label>
+        <input id="customerName" name="customerName" type="text" autocomplete="name" placeholder="Enter your name" required>
+
+        <label for="customerPhone">WhatsApp phone number</label>
+        <input id="customerPhone" name="customerPhone" type="tel" autocomplete="tel" placeholder="e.g. 0241234567" required>
+
+        <label for="paymentMethod">Preferred payment method</label>
+        <select id="paymentMethod" name="paymentMethod" required>
+          <option value="">Select a method</option>
+          <option value="Mobile Money">Mobile Money</option>
+          <option value="Bank transfer">Bank transfer</option>
+          <option value="Discuss on WhatsApp">Discuss on WhatsApp</option>
+        </select>
+
+        <label for="orderNote">Additional message (optional)</label>
+        <textarea id="orderNote" name="orderNote" rows="3" placeholder="Any details you want to share"></textarea>
+
+        <label class="checkbox-row"><input id="confirmDetails" type="checkbox" required><span>I have checked my details and estimated amount.</span></label>
+        <button class="button button-green full-width" type="submit" id="submitRequest">Send request on WhatsApp</button>
+        <button class="button button-light full-width" type="button" id="cancelOrder">Cancel</button>
+      </form>
+    </section>
+
+    <section class="screen" id="helpScreen">
+      <div class="page-heading"><span class="eyebrow">WE'RE HERE TO HELP</span><h1>Contact us</h1><p>Ask about buying or selling yuan.</p></div>
+      <div class="panel contact-panel">
+        <div class="contact-icon">✆</div>
+        <h2>WhatsApp support</h2>
+        <p>Send us your question and we'll discuss your exchange.</p>
+        <button class="button button-green full-width" id="helpWhatsAppButton">Chat on WhatsApp</button>
+      </div>
+      <div class="panel">
+        <h2>Frequently asked questions</h2>
+        <div class="faq-list">
+          <details><summary>How do I buy yuan?</summary><p>Enter your cedi amount, submit your request on WhatsApp, and follow the agreed exchange instructions.</p></details>
+          <details><summary>How do I sell yuan?</summary><p>Enter your yuan amount, submit your request on WhatsApp, and follow the agreed exchange instructions.</p></details>
+          <details><summary>Are calculator amounts final?</summary><p>The calculator gives an estimate. Confirm the rate, amount and availability before completing the exchange.</p></details>
+          <details><summary>When is the exchange complete?</summary><p>Your exchange is complete after the agreed funds have been received and the exchange has been carried out.</p></details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button class="nav-button active" data-screen="homeScreen"><span>⌂</span>Home</button>
+    <button class="nav-button" data-screen="buyScreen"><span>¥</span>Buy Yuan</button>
+    <button class="nav-button" data-screen="sellScreen"><span>⇄</span>Sell Yuan</button>
+    <button class="nav-button" data-screen="liveRatesScreen"><span>▤</span>Rates</button>
+    <button class="nav-button" data-screen="helpScreen"><span>?</span>Help</button>
+  </nav>
+
+  <footer><span>© <span id="currentYear"></span> Cedi to Yuan</span><span>GHS ⇄ CNY</span></footer>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
