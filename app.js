@@ -4,8 +4,8 @@
 // BUSINESS SETTINGS — CHANGE THESE TO YOUR ACTUAL RATES
 const WHATSAPP_NUMBER = "233547201547";
 const BUSINESS_NAME = "Cedi to Yuan";
-const BUY_RATE_CNY_PER_GHS = 0.50;
-const SELL_RATE_GHS_PER_CNY = 2.00;
+const BUY_RATE_CNY_PER_GHS = 0.54;
+const SELL_RATE_GHS_PER_CNY = 1.70;
 
 /** @typedef {"buy" | "sell"} Direction */
 /** @typedef {"CNY" | "GHS"} Currency */
