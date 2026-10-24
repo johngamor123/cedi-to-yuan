@@ -1,330 +1,654 @@
+import {
+  watchUser, registerUser, loginUser, googleLogin, logoutUser, resetPassword, updateName,
+  resendVerify, reloadUser, setRemember, getProfile, saveProfile,
+  ADMIN_EMAIL, watchConfig, saveConfig, createOrder, watchMyOrders, watchAllOrders,
+  adminSet, claimPaid, cancelMine
+} from "./firebase-auth.js";
 
-"use strict";
-
-// BUSINESS SETTINGS — CHANGE THESE TO YOUR ACTUAL RATES
-const WHATSAPP_NUMBER = "233547201547";
-const BUSINESS_NAME = "Cedi to Yuan";
-const BUY_RATE_CNY_PER_GHS = 0.54;
-const SELL_RATE_GHS_PER_CNY = 1.70;
-
-/** @typedef {"buy" | "sell"} Direction */
-/** @typedef {"CNY" | "GHS"} Currency */
-
-let currentDirection = /** @type {Direction} */ ("buy");
-let previousOrderScreen = "buyScreen";
-let toastTimer = /** @type {ReturnType<typeof setTimeout> | null} */ (null);
-
-/** @param {string} id @returns {HTMLElement} */
-function $(id) {
-  const element = document.getElementById(id);
-  if (!element) throw new Error("Missing HTML element: " + id);
-  return element;
+/* ---------- HELPERS ---------- */
+const $ = id => document.getElementById(id);
+const f = n => (+n || 0).toFixed(2);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ERR = {
+  "auth/email-already-in-use": "This email already has an account. Please log in.",
+  "auth/invalid-email": "Please enter a valid email address.",
+  "auth/weak-password": "Please choose a stronger password (at least 6 characters).",
+  "auth/invalid-credential": "Email or password is incorrect.",
+  "auth/user-not-found": "No account found. Please register first.",
+  "auth/wrong-password": "Email or password is incorrect.",
+  "auth/too-many-requests": "Too many attempts. Please try again later.",
+  "auth/network-request-failed": "Check your internet connection and try again.",
+  "auth/popup-closed-by-user": "Sign-in was cancelled.",
+  "permission-denied": "You do not have permission to do that."
+};
+const err = e => alert(ERR[e && e.code] || (e && e.message) || "Something went wrong. Please try again.");
+function toast(m) {
+  const t = $('toast'); t.textContent = m; t.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 2500);
 }
 
-/** @param {number} amount @param {Currency} currency @returns {string} */
-function formatMoney(amount, currency) {
-  if (!Number.isFinite(amount)) return "—";
-  const formatted = amount.toLocaleString("en-GH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-  return currency === "CNY" ? "¥" + formatted : "GH₵" + formatted;
+const METHODS = [
+  ["Pay with Paystack", "Card, Mobile Money, Bank (coming soon)", false],
+  ["MTN Mobile Money", "Pay with MTN MoMo", true],
+  ["AirtelTigo Money", "Pay with AirtelTigo Money", true],
+  ["Bank Transfer", "Direct Bank Transfer", true]
+];
+const RT = {
+  "Alipay": "Alipay account (phone or email)",
+  "WeChat Pay": "WeChat ID or phone number",
+  "Bank Transfer": "Bank account number"
+};
+const TABS = ["All", "Pending", "Completed", "Cancelled"];
+const ATABS = ["All", "Needs action", "Pending", "Completed", "Cancelled"];
+const SLIDES = [
+  ["🇬🇭 ⇄ 🇨🇳", "Exchange Made Simple", "Buy Chinese Yuan (CNY) with your Ghana Cedis (GHS) in just a few taps."],
+  ["💱", "See your Yuan instantly", "Enter how many Cedis you want to spend and see exactly how much Yuan you will get before you pay."],
+  ["📲", "Pay and receive", "Tell us your Alipay, WeChat or bank account, pay with Mobile Money or bank transfer, and we send your Yuan."]
+];
+const waNum = p => { p = String(p || "").replace(/\D/g, ""); if (p.startsWith("0")) p = "233" + p.slice(1); return p };
+
+/* ---------- STATE ---------- */
+let me = null, profile = {}, cfg = null, method = "MTN Mobile Money", rtype = "Alipay";
+let hist = [], cur, pendingAfter = null, tab = "All", atab = "All", slide = 0;
+let openId = null, placing = false, lastPlaced = null;
+let myOrders = [], allOrders = [], unsubs = [];
+
+const isAdmin = () => !!(me && me.email && me.email.toLowerCase() === ADMIN_EMAIL);
+const byTime = (a, b) => (b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 9e12) - (a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 9e12);
+const dt = o => o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString() : "Just now";
+const evTime = o => o.updatedAt && o.updatedAt.seconds ? o.updatedAt.seconds * 1000 : 0;
+const makeId = () => {
+  const d = new Date();
+  return "CYT-" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + "-" + String(Date.now()).slice(-6);
+};
+const cnyOf = g => Number(((+g || 0) * (cfg ? +cfg.rate : 0)).toFixed(2));
+const rateOf = o => (+o.ghs > 0 && +o.cny > 0) ? String(+((+o.cny) / (+o.ghs)).toFixed(4)) : "-";
+const rateTxt = () => cfg ? ("1 GHS = " + cfg.rate + " CNY") : "Rate not available yet";
+const total = o => (+o.ghs) + (+o.fee);
+const noFee = () => !!(cfg && +cfg.fee == 0);
+const myPhone = () => profile.phone || (me ? localStorage["phone_" + me.uid] : "") || "";
+const getOrder = id => myOrders.find(o => o.id == id);
+const ps = o => o.payStatus || "Awaiting payment";
+
+/* ---------- NAVIGATION (phone Back button works) ---------- */
+function show(p) {
+  cur = p;
+  document.querySelectorAll('.s').forEach(e => e.classList.toggle('on', e.id == p));
+  $('nav').style.display = ['home', 'orders', 'account'].includes(p) ? 'flex' : 'none';
+  document.querySelectorAll('#nav div').forEach(d => d.classList.toggle('a', d.dataset.p == p));
+  closeDrawer();
+  const r = { home, onb: () => { slide = 0; slideShow() }, buy: calc, recv: recvShow, summary: sum, pay: payShow,
+    orders: list, order: orderShow, done: doneShow, notif: notifShow, how: () => { localStorage.howdone = '1' },
+    account: acc, personal: personalShow, password: pwShow, admin: adminShow };
+  if (r[p]) r[p]();
+  if ($(p)) $(p).scrollTop = 0;
 }
-
-/** @param {Direction} direction @returns {number} */
-function getRate(direction) {
-  return direction === "buy"
-    ? BUY_RATE_CNY_PER_GHS
-    : SELL_RATE_GHS_PER_CNY;
+function go(p) { if (cur) hist.push(cur); history.pushState({}, ""); show(p) }
+function back() { if (hist.length) history.back(); else show('home') }
+function reset(p, then) {
+  const n = hist.length; hist = [];
+  const run = () => { show(p); if (then) then() };
+  if (n) {
+    pendingAfter = run;
+    history.go(-n);
+    setTimeout(() => { if (pendingAfter === run) { pendingAfter = null; run() } }, 500);
+  } else run();
 }
-
-/** @param {string} message */
-function showToast(message) {
-  const toast = $("toast");
-  toast.textContent = message;
-  toast.hidden = false;
-
-  if (toastTimer !== null) clearTimeout(toastTimer);
-
-  toastTimer = setTimeout(() => {
-    toast.hidden = true;
-    toastTimer = null;
-  }, 3200);
-}
-
-/** @param {string} screenId */
-function showScreen(screenId) {
-  const target = $(screenId);
-  if (!target.classList.contains("screen")) return;
-
-  document.querySelectorAll(".screen").forEach(screen => {
-    screen.classList.toggle("active", screen.id === screenId);
-  });
-
-  document.querySelectorAll(".nav-button").forEach(button => {
-    const active = button.getAttribute("data-screen") === screenId;
-    button.classList.toggle("active", active);
-
-    if (active) button.setAttribute("aria-current", "page");
-    else button.removeAttribute("aria-current");
-  });
-
-  window.scrollTo({ top: 0, behavior: "auto" });
-}
-
-/** @param {string} message */
-function openWhatsApp(message) {
-  const url = "https://wa.me/" + WHATSAPP_NUMBER +
-    "?text=" + encodeURIComponent(message);
-  window.location.href = url;
-}
-
-function openSupportWhatsApp() {
-  openWhatsApp(
-    "Hello " + BUSINESS_NAME +
-    ", I have a question about buying or selling Chinese yuan. " +
-    "Please confirm the applicable rate and availability."
-  );
-}
-
-function updateHomeRates() {
-  $("homeBuyRate").textContent =
-    "¥" + BUY_RATE_CNY_PER_GHS.toFixed(2) + " / GH₵1";
-
-  $("homeSellRate").textContent =
-    "GH₵" + SELL_RATE_GHS_PER_CNY.toFixed(2) + " / ¥1";
-
-  $("homeRateDetails").textContent =
-    "Buy yuan: GH₵100 = " +
-    formatMoney(100 * BUY_RATE_CNY_PER_GHS, "CNY") +
-    " at the displayed rate.";
-}
-
-function updateScreenRates() {
-  $("buyScreenRate").textContent =
-    "GH₵1 = " + formatMoney(BUY_RATE_CNY_PER_GHS, "CNY");
-
-  $("sellScreenRate").textContent =
-    "¥1 = " + formatMoney(SELL_RATE_GHS_PER_CNY, "GHS");
-}
-
-function updateLiveRates() {
-  $("liveBuyRate").textContent =
-    "GH₵1 = " + formatMoney(BUY_RATE_CNY_PER_GHS, "CNY");
-
-  $("liveSellRate").textContent =
-    "¥1 = " + formatMoney(SELL_RATE_GHS_PER_CNY, "GHS");
-}
-
-function updateOrderRateStatus() {
-  $("formRateStatus").textContent = currentDirection === "buy"
-    ? "GH₵1 = " + formatMoney(BUY_RATE_CNY_PER_GHS, "CNY")
-    : "¥1 = " + formatMoney(SELL_RATE_GHS_PER_CNY, "GHS");
-}
-
-function updateLiveDirectionLabels() {
-  const buying = /** @type {HTMLSelectElement} */ ($("liveDirection")).value === "buy";
-
-  $("liveAmountLabel").textContent = buying
-    ? "Amount in Ghana cedis (GH₵)"
-    : "Amount in Chinese yuan (¥)";
-
-  $("liveCurrencyPrefix").textContent = buying ? "GH₵" : "¥";
-  updateLiveCalculation();
-}
-
-/** @param {number} amount @param {Direction} direction @returns {number} */
-function calculateExchange(amount, direction) {
-  return amount * getRate(direction);
-}
-
-function updateLiveCalculation() {
-  const input = /** @type {HTMLInputElement} */ ($("liveAmount"));
-  const amount = Number(input.value);
-  const direction = /** @type {HTMLSelectElement} */ ($("liveDirection")).value;
-  const buying = direction === "buy";
-
-  if (!input.value.trim() || !Number.isFinite(amount) || amount <= 0) {
-    $("liveResult").textContent = buying ? "¥0.00" : "GH₵0.00";
-    $("liveCalculationNote").textContent = "Enter an amount to calculate.";
-    return;
-  }
-
-  $("liveResult").textContent = formatMoney(
-    calculateExchange(amount, buying ? "buy" : "sell"),
-    buying ? "CNY" : "GHS"
-  );
-  $("liveCalculationNote").textContent =
-    "Estimated amount before any agreed fees.";
-}
-
-/** @param {Direction} direction */
-function setDirection(direction) {
-  currentDirection = direction;
-
-  $("orderTitle").textContent = direction === "buy" ? "Buy Yuan" : "Sell Yuan";
-  $("orderSubtitle").textContent = direction === "buy"
-    ? "Pay Ghana cedis and receive Chinese yuan."
-    : "Provide Chinese yuan and receive Ghana cedis.";
-
-  $("amountLabel").textContent = direction === "buy"
-    ? "Amount in Ghana cedis (GH₵)"
-    : "Amount in Chinese yuan (¥)";
-
-  $("currencyPrefix").textContent = direction === "buy" ? "GH₵" : "¥";
-  /** @type {HTMLInputElement} */ ($("amount")).value = "";
-  $("estimateValue").textContent = direction === "buy" ? "¥0.00" : "GH₵0.00";
-  $("estimateNote").textContent = "Enter an amount to calculate.";
-  updateOrderRateStatus();
-}
-
-/** @param {Direction} direction */
-function continueToOrder(direction) {
-  currentDirection = direction;
-  previousOrderScreen = direction === "buy" ? "buyScreen" : "sellScreen";
-  setDirection(direction);
-  showScreen("orderScreen");
-}
-
-function updateEstimate() {
-  const input = /** @type {HTMLInputElement} */ ($("amount"));
-  const amount = Number(input.value);
-
-  if (!input.value.trim() || !Number.isFinite(amount) || amount <= 0) {
-    $("estimateValue").textContent =
-      currentDirection === "buy" ? "¥0.00" : "GH₵0.00";
-    $("estimateNote").textContent = "Enter an amount to calculate.";
-    return;
-  }
-
-  $("estimateValue").textContent = formatMoney(
-    calculateExchange(amount, currentDirection),
-    currentDirection === "buy" ? "CNY" : "GHS"
-  );
-  $("estimateNote").textContent =
-    "Estimated amount before any agreed fees.";
-}
-
-/** @param {string} id @returns {string} */
-function getFormValue(id) {
-  return /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ ($(id)).value.trim();
-}
-
-/** @param {SubmitEvent} event */
-function handleOrderSubmit(event) {
-  event.preventDefault();
-
-  const amount = Number(getFormValue("amount"));
-  const name = getFormValue("customerName");
-  const phone = getFormValue("customerPhone");
-  const paymentMethod = getFormValue("paymentMethod");
-  const note = getFormValue("orderNote");
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    showToast("Please enter a valid amount.");
-    $("amount").focus();
-    return;
-  }
-
-  if (!name || !phone || !paymentMethod) {
-    showToast("Please complete all required fields.");
-    return;
-  }
-
-  if (!/** @type {HTMLInputElement} */ ($("confirmDetails")).checked) {
-    showToast("Please confirm your details.");
-    return;
-  }
-
-  const estimated = calculateExchange(amount, currentDirection);
-  const amountText = formatMoney(
-    amount,
-    currentDirection === "buy" ? "GHS" : "CNY"
-  );
-  const estimatedText = formatMoney(
-    estimated,
-    currentDirection === "buy" ? "CNY" : "GHS"
-  );
-  const rateText = currentDirection === "buy"
-    ? "GH₵1 = " + formatMoney(BUY_RATE_CNY_PER_GHS, "CNY")
-    : "¥1 = " + formatMoney(SELL_RATE_GHS_PER_CNY, "GHS");
-
-  let message =
-    "CEDI TO YUAN — EXCHANGE REQUEST\n\n" +
-    "Request: " + (currentDirection === "buy" ? "BUY CHINESE YUAN" : "SELL CHINESE YUAN") + "\n" +
-    "Name: " + name + "\n" +
-    "Customer phone: " + phone + "\n" +
-    "Amount: " + amountText + "\n" +
-    "Displayed rate: " + rateText + "\n" +
-    "Estimated amount: " + estimatedText + "\n" +
-    "Preferred payment method: " + paymentMethod + "\n";
-
-  if (note) message += "Additional message: " + note + "\n";
-
-  message += "\nPlease confirm availability, the final amount and the exchange instructions.";
-  openWhatsApp(message);
-}
-
-/** @param {Event} event */
-function handleNavigation(event) {
-  const button = /** @type {HTMLElement} */ (event.currentTarget);
-  const screenId = button.getAttribute("data-screen");
-  if (screenId) showScreen(screenId);
-}
-
-function connectButtons() {
-  document.querySelectorAll("[data-screen]").forEach(button => {
-    button.addEventListener("click", handleNavigation);
-  });
-
-  $("homeBuyButton").addEventListener("click", () => showScreen("buyScreen"));
-  $("homeSellButton").addEventListener("click", () => showScreen("sellScreen"));
-  $("buyContinue").addEventListener("click", () => continueToOrder("buy"));
-  $("sellContinue").addEventListener("click", () => continueToOrder("sell"));
-  $("homeRatesButton").addEventListener("click", () => showScreen("liveRatesScreen"));
-  $("headerHelpButton").addEventListener("click", () => showScreen("helpScreen"));
-  $("homeHelpButton").addEventListener("click", openSupportWhatsApp);
-  $("helpWhatsAppButton").addEventListener("click", openSupportWhatsApp);
-  $("liveHelpButton").addEventListener("click", openSupportWhatsApp);
-
-  $("liveDirection").addEventListener("change", updateLiveDirectionLabels);
-  $("liveAmount").addEventListener("input", updateLiveCalculation);
-  $("amount").addEventListener("input", updateEstimate);
-
-  $("liveContinueButton").addEventListener("click", () => {
-    const input = /** @type {HTMLInputElement} */ ($("liveAmount"));
-    const amount = Number(input.value);
-    const direction = /** @type {HTMLSelectElement} */ ($("liveDirection")).value;
-
-    if (!input.value.trim() || !Number.isFinite(amount) || amount <= 0) {
-      showToast("Please enter a valid amount.");
-      input.focus();
-      return;
-    }
-
-    continueToOrder(direction === "sell" ? "sell" : "buy");
-    /** @type {HTMLInputElement} */ ($("amount")).value = String(amount);
-    updateEstimate();
-  });
-
-  $("cancelOrder").addEventListener("click", () => showScreen(previousOrderScreen));
-  $("orderForm").addEventListener("submit", handleOrderSubmit);
-}
-
-function registerServiceWorker() {
-  if ("serviceWorker" in navigator && location.protocol !== "file:") {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {
-      // The app remains usable if service-worker registration fails.
-    });
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  connectButtons();
-  updateHomeRates();
-  updateScreenRates();
-  updateLiveRates();
-  updateLiveDirectionLabels();
-  $("currentYear").textContent = String(new Date().getFullYear());
-  registerServiceWorker();
+const goHome = () => reset('home');
+const navTo = p => reset(p);
+window.addEventListener('popstate', () => {
+  if (pendingAfter) { const fn = pendingAfter; pendingAfter = null; fn(); return }
+  if (hist.length) show(hist.pop());
 });
+
+function openDrawer() {
+  $('dn').textContent = me ? (me.displayName || 'CediToYuan') : 'CediToYuan';
+  $('de').textContent = me ? me.email : '';
+  $('dadmin').style.display = isAdmin() ? 'block' : 'none';
+  $('drawer').classList.add('on');
+}
+function closeDrawer() { $('drawer').classList.remove('on') }
+function drawerGo(p) {
+  closeDrawer();
+  if (['home', 'orders', 'account'].includes(p)) reset(p); else go(p);
+}
+function eye(id) { const i = $(id); i.type = i.type == 'password' ? 'text' : 'password' }
+
+/* ---------- ONBOARDING ---------- */
+function slideShow() {
+  const s = SLIDES[slide];
+  $('oe').textContent = s[0]; $('ot').textContent = s[1]; $('ox').textContent = s[2];
+  $('odots').innerHTML = SLIDES.map((_, i) => `<i class="${i == slide ? 'a' : ''}"></i>`).join('');
+  $('obtn').textContent = slide < SLIDES.length - 1 ? 'Next ›' : 'Continue ›';
+}
+function nextSlide() { if (slide < SLIDES.length - 1) { slide++; slideShow() } else go('login') }
+
+/* ---------- SHARE ---------- */
+function shareApp() {
+  const url = location.origin + location.pathname.replace(/index\.html$/, '');
+  const text = "Buy Chinese Yuan with Ghana Cedis fast and safely on CediToYuan 🇬🇭➜🇨🇳";
+  if (navigator.share) navigator.share({ title: "CediToYuan", text, url }).catch(() => {});
+  else window.open("https://wa.me/?text=" + encodeURIComponent(text + " " + url), "_blank");
+}
+
+/* ---------- AUTH ---------- */
+async function loadProfile() {
+  try { profile = (await getProfile(me.uid)) || {} } catch (e) { profile = {} }
+  if (cur == 'home') home();
+}
+async function reg() {
+  const n = $('rn').value.trim(), e = $('re').value.trim(), ph = $('rp').value.trim(), p = $('rpw').value;
+  if (n.length < 2 || !e || ph.replace(/\D/g, '').length < 9 || p.length < 6) return alert('Fill all fields correctly (password min 6 characters, valid phone number).');
+  if (p != $('rcp').value) return alert('Passwords do not match');
+  try {
+    me = await registerUser(n, e, p);
+    profile = { name: n, phone: ph };
+    saveProfile(me.uid, profile).catch(() => {});
+    toast('Account created. Check your email to verify.');
+    reset('home');
+  } catch (x) { err(x) }
+}
+async function login() {
+  const e = $('li').value.trim(), p = $('lp').value;
+  if (!e.includes('@')) return alert('Please login with your email address');
+  if (!p) return alert('Enter your password');
+  try { await setRemember($('rem').checked); me = await loginUser(e, p); reset('home') } catch (x) { err(x) }
+}
+async function google() {
+  try { await setRemember($('rem').checked); me = await googleLogin(); reset('home') } catch (x) { err(x) }
+}
+async function forgot() {
+  const e = $('li').value.trim();
+  if (!e.includes('@')) return alert('Type your email in the email box first');
+  try { await resetPassword(e); alert('Password reset link sent to ' + e) } catch (x) { err(x) }
+}
+async function logout() {
+  try { await logoutUser() } catch (x) { err(x); return }
+  me = null; profile = {}; clearRecv(); reset('login');
+}
+async function resend() {
+  try { const r = await resendVerify(); toast(r == "verified" ? "Your email is already verified" : "Verification link sent"); home() } catch (x) { err(x) }
+}
+async function refreshVerify() {
+  try { await reloadUser(); home(); toast(me.emailVerified ? "Email verified. Thank you!" : "Not verified yet. Open the link in your email.") } catch (x) { err(x) }
+}
+
+/* ---------- LIVE DATA ---------- */
+function stopData() { unsubs.forEach(u => u()); unsubs = []; myOrders = []; allOrders = [] }
+function startData() {
+  stopData();
+  if (!me) return;
+  unsubs.push(watchMyOrders(me.uid, l => { myOrders = l.sort(byTime); refreshOrders() }));
+  if (isAdmin()) unsubs.push(watchAllOrders(l => { allOrders = l.sort(byTime); refreshOrders() }));
+}
+function refreshOrders() {
+  if (cur == 'orders') list();
+  if (cur == 'home') home();
+  if (cur == 'admin') adminList();
+  if (cur == 'order') orderShow();
+  if (cur == 'notif') notifShow();
+  if (cur == 'done') doneShow();
+  updateBell();
+}
+watchConfig(c => {
+  cfg = c;
+  if (cur == 'home') home();
+  if (cur == 'buy') calc();
+  if (cur == 'summary') sum();
+  if (cur == 'pay') payShow();
+  if (cur == 'order') orderShow();
+});
+
+/* ---------- NOTIFICATIONS ---------- */
+const seenKey = () => "seen_" + (me ? me.uid : "x");
+const notifs = () => myOrders.filter(o => o.lastEvent && o.updatedAt).sort((a, b) => evTime(b) - evTime(a));
+const unread = () => notifs().filter(o => evTime(o) > (+localStorage[seenKey()] || 0)).length;
+function updateBell() { const d = $('bdot'); if (d) d.style.display = unread() > 0 ? 'block' : 'none' }
+function notifShow() {
+  const l = notifs();
+  $('nl').innerHTML = l.length ? l.map(o => `<div class="card" onclick="openOrder('${o.id}')">
+    <b>${esc(o.lastEvent)}</b><br><small>Order ${esc(o.orderId)} · ${new Date(evTime(o)).toLocaleString()}</small></div>`).join('')
+    : '<p style="text-align:center;color:#888;margin-top:40px">No notifications yet</p>';
+  localStorage[seenKey()] = Date.now();
+  updateBell();
+}
+
+/* ---------- HOME ---------- */
+function qcalc() {
+  const g = +$('qc').value || 0;
+  $('qcout').textContent = cfg ? "¥ " + f(cnyOf(g)) : "—";
+}
+function buyFromQuick() {
+  const g = +$('qc').value;
+  if (g > 0) $('amt').value = g;
+  go('buy');
+}
+function dismissHow() { localStorage.howdone = '1'; $('howcard').style.display = 'none' }
+function home() {
+  const first = me ? String(me.displayName || profile.name || "").trim().split(" ")[0] : "";
+  $('hello').textContent = first ? "Hello, " + first + " 👋" : "Hello 👋";
+  $('hr').textContent = rateTxt();
+  $('hu').textContent = cfg && cfg.updated && cfg.updated.toDate ? "Last updated: " + cfg.updated.toDate().toLocaleString() : "";
+  const done = myOrders.filter(o => o.status == "Completed");
+  $('cb').textContent = "¥ " + f(done.reduce((a, o) => a + +o.cny, 0));
+  $('gb').textContent = "GH₵ " + f(done.reduce((a, o) => a + +o.ghs, 0));
+  $('closedbanner').style.display = cfg && cfg.open === false ? 'block' : 'none';
+  $('vbanner').style.display = me && !me.emailVerified ? 'block' : 'none';
+  $('nofee').style.display = noFee() ? 'block' : 'none';
+  $('howcard').style.display = (!localStorage.howdone && myOrders.length == 0) ? 'block' : 'none';
+  qcalc();
+  updateBell();
+}
+
+/* ---------- BUY ---------- */
+function setAmt(v) { $('amt').value = v; calc() }
+function calc() {
+  const g = +$('amt').value || 0;
+  $('cny').textContent = "¥ " + f(cnyOf(g));
+  $('br').textContent = rateTxt();
+  $('rcv').textContent = "You will receive ¥ " + f(cnyOf(g)) + " CNY";
+  $('minmax').textContent = cfg ? "Min GH₵ " + cfg.min + " · Max GH₵ " + cfg.max : "";
+  $('nofeeb').style.display = noFee() ? 'block' : 'none';
+  document.querySelectorAll('#chips .chip').forEach(c => c.classList.toggle('a', c.textContent == "GH₵ " + $('amt').value));
+}
+function toRecipient() {
+  if (!cfg) return alert('Rates are not available yet. Please try again shortly.');
+  if (cfg.open === false) return alert('We are currently closed and not taking new orders. Please try again later.');
+  const g = +$('amt').value;
+  if (!(g > 0)) return alert('Enter an amount');
+  if (g < +cfg.min) return alert('Minimum order is GH₵ ' + cfg.min);
+  if (g > +cfg.max) return alert('Maximum order is GH₵ ' + cfg.max);
+  go('recv');
+}
+
+/* ---------- RECIPIENT ---------- */
+function setRT(t) { rtype = t; rtView() }
+function rtView() {
+  $('rts').innerHTML = Object.keys(RT).map(k => `<div class="pm ${k == rtype ? 'a' : ''}" onclick="setRT('${k}')"><b>${k}</b><span>${k == rtype ? '◉' : '○'}</span></div>`).join('');
+  $('racct').placeholder = RT[rtype];
+  $('rbankbox').style.display = rtype == "Bank Transfer" ? 'block' : 'none';
+  $('rnlabel').textContent = "Full name on your " + rtype + " account";
+}
+function recvShow() {
+  const key = "lastRecv_" + (me ? me.uid : "x");
+  let last = null;
+  try { last = JSON.parse(localStorage[key] || "null") } catch (e) { }
+  if (last && !$('rname').value && !$('racct').value) {
+    rtype = last.type; $('rname').value = last.name; $('racct').value = last.acct; $('rbank').value = last.bank || "";
+  }
+  rtView();
+  if (!$('rphone').value) $('rphone').value = myPhone();
+}
+function clearRecv() {
+  ['rname', 'racct', 'rbank', 'rphone'].forEach(i => $(i).value = '');
+  $('rconf').checked = false;
+}
+function toSummary() {
+  const n = $('rname').value.trim(), a = $('racct').value.trim(), b = $('rbank').value.trim(), ph = $('rphone').value.trim();
+  if (n.length < 2) return alert('Enter the full name on your account');
+  if (a.length < 5) return alert('Enter your ' + RT[rtype]);
+  if (rtype == "Bank Transfer" && b.length < 2) return alert('Enter the bank name');
+  if (ph.replace(/\D/g, '').length < 9) return alert('Enter your phone number');
+  if (!$('rconf').checked) return alert('Please tick the box to confirm the name matches your account');
+  go('summary');
+}
+
+/* ---------- SUMMARY ---------- */
+function sum() {
+  if (!cfg) return;
+  const g = +$('amt').value || 0, fee = +cfg.fee;
+  $('sumBox').innerHTML =
+    `<h3 style="margin-bottom:8px">🇬🇭 Buy Yuan</h3>
+    <div class="row"><span>GHS Amount</span><b>GH₵ ${f(g)}</b></div>
+    <div class="row"><span>Exchange Rate</span><b>${esc(rateTxt())}</b></div>
+    <div class="row"><span>You Get</span><b>¥ ${f(cnyOf(g))} CNY</b></div>
+    ${fee > 0 ? `<div class="row"><span>Fee</span><b>GH₵ ${f(fee)}</b></div>` : ''}
+    <div class="row"><span>Total to pay (GHS)</span><b>GH₵ ${f(g + fee)}</b></div>
+    ${fee == 0 ? '<div class="vb ok">🎉 No fees on this order</div>' : ''}
+    <div class="rbox">
+     <small>Yuan will be sent to</small><br>
+     <b>${esc(rtype)}</b><br>
+     Name: <b>${esc($('rname').value.trim())}</b><br>
+     Account: <b>${esc($('racct').value.trim())}</b>
+     ${rtype == "Bank Transfer" ? `<br>Bank: <b>${esc($('rbank').value.trim())}</b>` : ''}
+    </div>`;
+}
+
+/* ---------- PAYMENT METHOD + PLACE ORDER ---------- */
+function pms() {
+  $('pms').innerHTML = METHODS.map(m => `<div class="pm ${m[0] == method ? 'a' : ''} ${m[2] ? '' : 'off'}" onclick="setMethod('${m[0]}')"><div><b>${m[0]}</b><br><small>${m[1]}</small></div><span>${m[0] == method ? '◉' : '○'}</span></div>`).join('');
+}
+function setMethod(m) {
+  const x = METHODS.find(k => k[0] == m);
+  if (!x || !x[2]) return toast('Paystack is coming soon');
+  method = m; pms();
+}
+function payShow() {
+  pms();
+  $('paybtn').textContent = "Place Order · GH₵ " + f((+$('amt').value || 0) + (cfg ? +cfg.fee : 0)) + " ›";
+}
+async function placeOrder() {
+  if (placing) return;
+  if (!me) return alert('Please log in again.');
+  if (!cfg || cfg.open === false) return alert('We are currently not taking orders. Please try again later.');
+  const g = +$('amt').value, fee = +cfg.fee;
+  if (!(g > 0) || g < +cfg.min || g > +cfg.max) return alert('Please check the amount.');
+  placing = true;
+  show('proc');
+  $('st2').className = ''; $('st3').className = '';
+  setTimeout(() => $('st2').className = 'a', 700);
+  setTimeout(() => $('st3').className = 'a', 1400);
+  const o = {
+    uid: me.uid, name: me.displayName || profile.name || "", email: me.email || "",
+    phone: $('rphone').value.trim(), orderId: makeId(),
+    ghs: g, fee, rate: +cfg.rate, cny: cnyOf(g), method,
+    status: "Pending", payStatus: "Awaiting payment",
+    recvType: rtype, recvName: $('rname').value.trim(), recvAcct: $('racct').value.trim(),
+    recvBank: rtype == "Bank Transfer" ? $('rbank').value.trim() : "",
+    customerRef: "", note: ""
+  };
+  try {
+    const ref = await Promise.race([
+      createOrder(o),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
+    ]);
+    if (o.phone) { profile.phone = o.phone; saveProfile(me.uid, { phone: o.phone }).catch(() => {}) }
+    try { localStorage["lastRecv_" + me.uid] = JSON.stringify({ type: rtype, name: o.recvName, acct: o.recvAcct, bank: o.recvBank }) } catch (e) { }
+    await new Promise(r => setTimeout(r, 1500));
+    openId = ref.id; lastPlaced = o;
+    clearRecv();
+    if (navigator.vibrate) navigator.vibrate(60);
+    reset('home', () => go('done'));
+  } catch (x) {
+    console.error(x);
+    alert(x.code == 'permission-denied'
+      ? 'Your order was blocked. The rate may have just changed. Please go back and try again.'
+      : 'We could not confirm your order. Please check My Orders before trying again.');
+    show('pay');
+  } finally { placing = false }
+}
+
+/* ---------- ORDER PLACED / DETAILS ---------- */
+function payBox(o) {
+  const info = cfg && cfg.payInfo ? cfg.payInfo : "Our payment details will be sent to you on WhatsApp.";
+  return `<div class="rbox"><b>Pay GH₵ ${f(total(o))}</b><br><small>Send payment to:</small><br>
+    <span style="white-space:pre-line">${esc(info)}</span><br>
+    <small>Use <b>${esc(o.orderId)}</b> as your payment reference.</small></div>`;
+}
+function doneShow() {
+  const o = getOrder(openId) || lastPlaced;
+  if (!o) return;
+  $('dtxt').textContent = "Your request to buy ¥ " + f(o.cny) + " CNY has been received. Please pay to complete it.";
+  $('did').textContent = o.orderId;
+  $('ddt').textContent = dt(o) == "Just now" ? new Date().toLocaleString() : dt(o);
+  $('dpay').innerHTML = payBox(o);
+}
+function openOrder(id) { openId = id; go('order') }
+function tracker(o) {
+  if (o.status == 'Cancelled') return '';
+  const paid = o.status == 'Completed' || ps(o) == 'Paid';
+  const steps = [
+    ["Order placed", "d"],
+    ["Payment", paid ? "d" : (ps(o) == 'Customer says paid' ? "a" : "")],
+    ["Yuan sent", o.status == 'Completed' ? "d" : (paid ? "a" : "")]
+  ];
+  return `<div class="trk">${steps.map(s => `<div class="ts ${s[1]}"><i>${s[1] == 'd' ? '✔' : ''}</i><small>${s[0]}</small></div>`).join('')}</div>`;
+}
+function orderShow() {
+  const o = getOrder(openId);
+  if (!o) { $('obody').innerHTML = '<p style="text-align:center;margin-top:40px;color:#888">Loading order...</p>'; return }
+  const keep = $('cref') ? $('cref').value : '';
+  const sup = "https://wa.me/233547201547?text=" + encodeURIComponent("Hello CediToYuan, I need help with order " + o.orderId);
+  let action = '';
+  if (o.status == 'Pending') {
+    if (ps(o) == 'Awaiting payment') action = payBox(o) +
+      `<input id="cref" placeholder="Your transaction ID / payment reference">
+       <button class="btn" onclick="iPaid()">I Have Paid</button>
+       <button class="btn o red-o" onclick="custCancel()">Cancel Order</button>`;
+    else if (ps(o) == 'Customer says paid') action =
+      `<div class="vb wait">⏳ We are confirming your payment${o.customerRef ? ' (ref: ' + esc(o.customerRef) + ')' : ''}. This usually takes a few minutes.</div>
+       <a class="btn o" href="${sup}" target="_blank">💬 Contact support</a>`;
+    else if (ps(o) == 'Paid') action = `<div class="vb ok">✅ Payment confirmed. We are sending your Yuan now.</div>`;
+  } else if (o.status == 'Completed') {
+    action = `<div class="vb ok">✅ Completed. ¥ ${f(o.cny)} was sent to your ${esc(o.recvType)}.</div>`;
+  } else {
+    action = `<div class="vb bad">❌ Order cancelled${o.cancelReason ? ': ' + esc(o.cancelReason) : ''}.
+      ${ps(o) == 'Refund due' ? ' Your refund of GH₵ ' + f(total(o)) + ' will be processed.' : ''}
+      ${ps(o) == 'Refunded' ? ' Your payment has been refunded.' : ''}</div>
+      <a class="btn o" href="${sup}" target="_blank">💬 Contact support</a>`;
+  }
+  $('obody').innerHTML = `<div class="card">
+    <div class="row"><b style="font-size:22px">¥ ${f(o.cny)}</b><span class="tag ${o.status}">${o.status}</span></div>
+    ${tracker(o)}
+    <div class="orow"><span>Order ID</span><b>${esc(o.orderId)}</b></div>
+    <div class="orow"><span>Date</span><b>${dt(o)}</b></div>
+    <div class="orow"><span>GHS Amount</span><b>GH₵ ${f(o.ghs)}</b></div>
+    <div class="orow"><span>Rate</span><b>1 GHS = ${rateOf(o)} CNY</b></div>
+    ${+o.fee > 0 ? `<div class="orow"><span>Fee</span><b>GH₵ ${f(o.fee)}</b></div>` : ''}
+    <div class="orow"><span>Total to pay</span><b>GH₵ ${f(total(o))}</b></div>
+    <div class="orow"><span>Pay method</span><b>${esc(o.method)}</b></div>
+    <div class="rbox"><small>Yuan sent to</small><br><b>${esc(o.recvType || '—')}</b><br>
+      Name: <b>${esc(o.recvName || '—')}</b><br>Account: <b>${esc(o.recvAcct || '—')}</b>
+      ${o.recvBank ? '<br>Bank: <b>' + esc(o.recvBank) + '</b>' : ''}</div>
+  </div>${action}`;
+  if ($('cref')) $('cref').value = keep;
+}
+async function iPaid() {
+  const o = getOrder(openId); if (!o) return;
+  const r = $('cref').value.trim();
+  if (r.length < 3) return alert('Enter your transaction ID or payment reference so we can find your payment.');
+  try { await claimPaid(o.id, r); toast('Thank you! We are confirming your payment.') } catch (x) { err(x) }
+}
+async function custCancel() {
+  const o = getOrder(openId); if (!o) return;
+  if (!confirm('Cancel this order? Only do this if you have NOT paid.')) return;
+  try { await cancelMine(o.id); toast('Order cancelled') } catch (x) { err(x) }
+}
+
+/* ---------- MY ORDERS ---------- */
+function setTab(t) { tab = t; list() }
+function list() {
+  $('tabs').innerHTML = TABS.map(t => `<b class="${t == tab ? 'a' : ''}" onclick="setTab('${t}')">${t}</b>`).join('');
+  const l = myOrders.filter(o => tab == "All" || o.status == tab);
+  $('ol').innerHTML = l.length ? l.map(o => `<div class="card" onclick="openOrder('${o.id}')">
+    <div class="row"><b style="font-size:20px">¥ ${f(o.cny)}</b><span class="tag ${o.status}">${o.status}</span></div>
+    <small>GH₵ ${f(o.ghs)} · 1 GHS = ${rateOf(o)} CNY<br>
+    ${o.recvType ? 'To: ' + esc(o.recvType) + ' · ' + esc(o.recvName) + '<br>' : ''}
+    ${o.status == 'Pending' ? esc(ps(o)) + '<br>' : ''}
+    Order ID: ${esc(o.orderId)}<br>${dt(o)}</small></div>`).join('')
+    : '<p style="text-align:center;color:#888;margin-top:40px">No orders yet</p>';
+}
+
+/* ---------- ACCOUNT ---------- */
+const ACC = [["Personal Information", "personal"], ["Change Password", "password"], ["How It Works", "how"], ["Invite Friends", "share"], ["Payment Methods", "pmethods"], ["Notifications", "notif"], ["Help & Support", "help"], ["About Us", "about"]];
+function acc() {
+  $('an').textContent = me ? (me.displayName || 'User') : '';
+  $('ae').textContent = me ? me.email : '';
+  $('adminBtn').style.display = isAdmin() ? 'block' : 'none';
+  $('alist').innerHTML = ACC.map(t => `<div class="row" style="border-bottom:1px solid #eee" onclick="accGo('${t[1]}')"><span>${t[0]}</span><span>›</span></div>`).join('');
+}
+function accGo(p) {
+  if (p == 'share') return shareApp();
+  if (p == 'pmethods') return alert('You can pay with MTN Mobile Money, AirtelTigo Money or Bank Transfer. Paystack (card) is coming soon.');
+  go(p);
+}
+function personalShow() {
+  $('pn').value = me ? (me.displayName || '') : '';
+  $('pe').value = me ? me.email : '';
+  $('pp').value = myPhone();
+}
+function pwShow() { $('pwemail').textContent = me ? me.email : '' }
+async function savePersonal() {
+  const n = $('pn').value.trim(), p = $('pp').value.trim();
+  if (n.length < 2) return alert('Enter your full name');
+  try {
+    await updateName(n);
+    await saveProfile(me.uid, { name: n, phone: p });
+    profile.name = n; profile.phone = p;
+    toast('Saved'); back();
+  } catch (x) { err(x) }
+}
+async function sendReset() {
+  try { await resetPassword(me.email); alert('Password reset link sent to ' + me.email + '. Check your email.') } catch (x) { err(x) }
+}
+
+/* ---------- ADMIN ---------- */
+function adminShow() {
+  if (!isAdmin()) { back(); return }
+  if (cfg) {
+    $('ar').value = cfg.rate; $('af').value = cfg.fee; $('amin').value = cfg.min; $('amax').value = cfg.max;
+    $('apay').value = cfg.payInfo || ''; $('aopen').checked = cfg.open !== false;
+  } else { $('aopen').checked = true }
+  adminList();
+}
+async function saveCfg() {
+  const rate = +$('ar').value, fee = +$('af').value, min = +$('amin').value, max = +$('amax').value;
+  if (!(rate > 0)) return alert('Enter the rate (Yuan for 1 GH₵), for example 0.542');
+  if (!(fee >= 0) || $('af').value === '') return alert('Enter the fee (use 0 for no fee)');
+  if (!(min > 0) || !(max >= min)) return alert('Enter a valid minimum and maximum order');
+  if (rate >= 1 && !confirm('Rate ' + rate + ' means customers get ¥ ' + rate + ' for every GH₵ 1. Is that correct?')) return;
+  try {
+    await saveConfig({ rate, fee, min, max, open: $('aopen').checked, payInfo: $('apay').value.trim() });
+    toast('Settings saved. Customers now see 1 GHS = ' + rate + ' CNY');
+  } catch (x) { err(x) }
+}
+const need = o => o.status == "Pending" && ps(o) == "Customer says paid";
+const TF = {
+  "All": () => true, "Needs action": need,
+  "Pending": o => o.status == "Pending", "Completed": o => o.status == "Completed", "Cancelled": o => o.status == "Cancelled"
+};
+function setATab(t) { atab = t; adminList() }
+function payBadge(o) {
+  if (o.status == "Completed") return '';
+  if (o.status == "Cancelled") {
+    if (ps(o) == "Refund due") return `<div class="vb bad">💸 Refund due: GH₵ ${f(total(o))}</div>`;
+    if (ps(o) == "Refunded") return `<div class="vb ok">✅ Refunded</div>`;
+    return '';
+  }
+  if (ps(o) == "Paid") return `<div class="vb ok">✅ Payment confirmed</div>`;
+  if (ps(o) == "Customer says paid") return `<div class="vb wait">💬 Customer says paid${o.customerRef ? ' · ref: <b>' + esc(o.customerRef) + '</b>' : ''}<br>Check your MoMo/bank for GH₵ ${f(total(o))}, then tap Confirm payment.</div>`;
+  return `<div class="vb wait">⏳ Waiting for customer to pay GH₵ ${f(total(o))}</div>`;
+}
+function adminList() {
+  const today = new Date().toDateString();
+  const isToday = o => o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toDateString() == today : true;
+  const done = allOrders.filter(o => o.status == "Completed");
+  const stat = (l, v) => `<div class="card"><small>${l}</small><div class="big" style="font-size:19px">${v}</div></div>`;
+  $('astat').innerHTML = '<div class="two">' +
+    stat("Today", allOrders.filter(isToday).length) +
+    stat("Needs action", allOrders.filter(need).length) +
+    stat("Pending", allOrders.filter(o => o.status == "Pending").length) +
+    stat("Completed", done.length) +
+    stat("GH₵ received", f(done.reduce((a, o) => a + total(o), 0))) +
+    stat("Yuan sent", "¥ " + f(done.reduce((a, o) => a + +o.cny, 0))) + '</div>';
+  $('atabs').innerHTML = ATABS.map(t => `<b class="${t == atab ? 'a' : ''}" onclick="setATab('${t}')">${t}</b>`).join('');
+  const q = ($('asearch').value || '').toLowerCase().trim();
+  const l = allOrders.filter(o => TF[atab](o) &&
+    (!q || [o.name, o.phone, o.email, o.orderId, o.recvName, o.customerRef].join(' ').toLowerCase().includes(q)));
+  $('aol').innerHTML = l.length ? l.map(o => {
+    const bad = Math.abs((+o.cny) - (+o.ghs) * (+o.rate)) > 0.011;
+    return `<div class="card">
+    <div class="row"><b style="font-size:20px">¥ ${f(o.cny)}</b><span class="tag ${o.status}">${o.status}</span></div>
+    ${payBadge(o)}
+    ${bad ? '<div class="vb bad">⚠️ Yuan amount does not match the rate. Do not complete this order.</div>' : ''}
+    <small>GH₵ ${f(o.ghs)}${+o.fee > 0 ? ' + fee ' + f(o.fee) : ''} = <b>GH₵ ${f(total(o))}</b> · 1 GHS = ${rateOf(o)} CNY<br>Pay method: ${esc(o.method)}</small>
+    <div class="rbox">
+      <small>Send Yuan to</small><br><b>${esc(o.recvType || '—')}</b><br>
+      Name: <b>${esc(o.recvName || '—')}</b><br>
+      Account: <b>${esc(o.recvAcct || '—')}</b>
+      ${o.recvBank ? `<br>Bank: <b>${esc(o.recvBank)}</b>` : ''}
+      <div><button class="btn sm o" onclick="copyField('${o.id}','recvName')">Copy name</button><button class="btn sm o" onclick="copyField('${o.id}','recvAcct')">Copy account</button></div>
+    </div>
+    <small>👤 ${esc(o.name)} · ${esc(o.phone)}<br>${esc(o.email)}<br>${esc(o.orderId)}<br>${dt(o)}</small>
+    ${o.cancelReason ? `<div class="note">Reason: ${esc(o.cancelReason)}</div>` : ''}
+    ${o.note ? `<div class="note">📝 ${esc(o.note)}</div>` : ''}
+    <div>
+      <button class="btn sm o" onclick="waCust('${o.id}')">💬 WhatsApp</button>
+      <button class="btn sm o" onclick="addNote('${o.id}')">📝 Note</button>
+      ${o.status == "Pending" && ps(o) != "Paid" ? `<button class="btn sm" onclick="confirmPay('${o.id}')">💰 Confirm payment</button>` : ''}
+      ${o.status == "Pending" && ps(o) == "Paid" ? `<button class="btn sm" onclick="completeOrder('${o.id}')">✔ Complete</button>` : ''}
+      ${o.status == "Pending" ? `<button class="btn sm red" onclick="adminCancel('${o.id}')">✖ Cancel</button>` : ''}
+      ${o.status == "Cancelled" && ps(o) == "Refund due" ? `<button class="btn sm" onclick="markRefunded('${o.id}')">Mark refunded</button>` : ''}
+    </div>
+  </div>`}).join('') : '<p style="text-align:center;color:#888;margin-top:30px">No orders</p>';
+}
+const findAll = id => allOrders.find(x => x.id == id);
+async function confirmPay(id) {
+  const o = findAll(id); if (!o) return;
+  if (!confirm('Confirm you received GH₵ ' + f(total(o)) + ' from ' + (o.name || 'this customer') + '?')) return;
+  try { await adminSet(id, { payStatus: 'Paid', paid: true, lastEvent: 'Payment confirmed. We are sending your Yuan.' }); toast('Payment confirmed') } catch (x) { err(x) }
+}
+async function completeOrder(id) {
+  const o = findAll(id); if (!o) return;
+  if (ps(o) != 'Paid') return alert('Confirm the payment first.');
+  if (!confirm('Have you already sent ¥ ' + f(o.cny) + ' to ' + o.recvName + ' (' + o.recvType + ' ' + o.recvAcct + ')?')) return;
+  try { await adminSet(id, { status: 'Completed', lastEvent: 'Order completed. ¥ ' + f(o.cny) + ' sent to your ' + o.recvType + '.' }); toast('Order completed') } catch (x) { err(x) }
+}
+async function adminCancel(id) {
+  const o = findAll(id); if (!o) return;
+  const r = prompt('Reason for cancelling (optional):', '');
+  if (r === null) return;
+  const refund = ps(o) == 'Paid';
+  const reason = r.trim();
+  try {
+    await adminSet(id, {
+      status: 'Cancelled', cancelReason: reason, payStatus: refund ? 'Refund due' : ps(o),
+      lastEvent: 'Order cancelled' + (reason ? ': ' + reason : '') + (refund ? '. Your refund will be processed.' : '')
+    });
+    toast('Order cancelled');
+  } catch (x) { err(x) }
+}
+async function markRefunded(id) {
+  if (!confirm('Mark this order as refunded?')) return;
+  try { await adminSet(id, { payStatus: 'Refunded', lastEvent: 'Your refund has been sent.' }); toast('Marked refunded') } catch (x) { err(x) }
+}
+function copyField(id, k) {
+  const o = findAll(id); if (!o) return;
+  const t = o[k] || '';
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Copied: ' + t)).catch(() => prompt('Copy this:', t));
+  else prompt('Copy this:', t);
+}
+function waCust(id) {
+  const o = findAll(id); if (!o) return;
+  const msg = encodeURIComponent("Hello " + (o.name || "") + ", this is CediToYuan about your order " + o.orderId + ".");
+  window.open("https://wa.me/" + waNum(o.phone) + "?text=" + msg, "_blank");
+}
+async function addNote(id) {
+  const o = findAll(id); if (!o) return;
+  const n = prompt('Private note for this order:', o.note || '');
+  if (n === null) return;
+  try { await adminSet(id, { note: n.trim() }, false); toast('Note saved') } catch (x) { err(x) }
+}
+function exportCsv() {
+  const rows = [["Date","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient account","Bank","Customer ref"]];
+  allOrders.forEach(o => rows.push([dt(o), o.orderId, o.name, o.phone, o.email, o.ghs, o.fee, rateOf(o), o.cny, o.method, o.payStatus || '', o.status, o.recvType || '', o.recvName || '', o.recvAcct || '', o.recvBank || '', o.customerRef || '']));
+  const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(",")).join("\n");
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+  a.download = "cediToyuan-orders.csv";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- START ---------- */
+$('chips').innerHTML = [200, 500, 1000, 2000, 5000].map(v => `<div class="chip" onclick="setAmt(${v})">GH₵ ${v}</div>`).join('') +
+  `<div class="chip" onclick="$('amt').value='';$('amt').focus()">Other</div>`;
+pms();
+slideShow();
+
+Object.assign(window, {
+  $, toast, go, back, goHome, navTo, openDrawer, closeDrawer, drawerGo, eye, nextSlide, shareApp,
+  reg, login, google, forgot, logout, resend, refreshVerify,
+  home, qcalc, buyFromQuick, dismissHow, calc, setAmt, toRecipient, setRT, toSummary, setMethod, placeOrder,
+  setTab, openOrder, iPaid, custCancel, accGo, savePersonal, sendReset,
+  saveCfg, setATab, adminList, copyField, waCust, addNote, confirmPay, completeOrder, adminCancel, markRefunded, exportCsv
+});
+
+let first = true;
+watchUser(u => {
+  me = u; startData();
+  if (u) loadProfile();
+  if (first) { first = false; show(u ? 'home' : 'splash') }
+  else if (!u && !['splash', 'onb', 'login', 'reg'].includes(cur)) show('login');
+});
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
