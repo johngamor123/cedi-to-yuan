@@ -1,180 +1,380 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b6b35">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<style>
+.btn.sm{width:auto;padding:9px 14px;font-size:14px;margin:10px 8px 0 0}
+.btn.red{background:#c0392b;box-shadow:none}
+.btn.o.red-o{color:#c0392b;border-color:#c0392b}
+.rbox{background:#eef5f0;border-radius:10px;padding:10px;margin:10px 0;font-size:14px;line-height:1.5}
+a.btn{display:block;text-align:center;text-decoration:none}
+.vb{padding:10px;border-radius:10px;margin:10px 0;font-size:14px;line-height:1.5}
+.vb.ok{background:#d6f3df;color:#0b6b35}
+.vb.bad{background:#fcd9d9;color:#a02020}
+.vb.wait{background:#ffe8a3;color:#8a6200}
+textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;font-size:15px;margin-bottom:12px;font-family:inherit;user-select:text;-webkit-user-select:text}
+.pw{position:relative}
+.pw span{position:absolute;right:14px;top:13px;font-size:18px}
+.pm.off{opacity:.5}
+.top span.bell{position:relative}
+#bdot{position:absolute;top:-2px;right:2px;width:10px;height:10px;background:#e74c3c;border-radius:50%;display:none}
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;z-index:60;display:none;max-width:85%;text-align:center}
+#drawer{position:fixed;inset:0;background:#0006;z-index:50;display:none}
+#drawer.on{display:block}
+#drawer .panel{background:#fff;width:75%;max-width:320px;height:100%;overflow-y:auto;animation:slide .2s ease}
+#drawer .dh{background:linear-gradient(160deg,#0f8a45,#0b6b35);color:#fff;padding:30px 18px 18px}
+#drawer .dh small{color:#cfe}
+#drawer .di{padding:15px 18px;border-bottom:1px solid #eee;font-size:16px}
+.orow{display:flex;justify-content:space-between;padding:7px 0;font-size:14px}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step i{flex:none;width:30px;height:30px;border-radius:50%;background:var(--g);color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:700}
+.trk{display:flex;justify-content:space-between;margin:10px 0 14px}
+.ts{flex:1;text-align:center}
+.ts i{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#dfe6e1;color:#fff;margin:0 auto 4px;font-style:normal;font-size:14px}
+.ts.d i{background:var(--g)}
+.ts.a i{background:var(--y)}
+.ts small{font-size:12px}
+.tip{background:linear-gradient(160deg,#fff7df,#ffeeb3);border:1px solid #f5d77a}
+</style>
+<title>CediToYuan</title></head><body>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#087f5b">
-  <meta name="description" content="Buy Chinese yuan with Ghana cedis or sell yuan for Ghana cedis.">
-  <title>Cedi to Yuan</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header class="topbar">
-    <a href="#" class="brand" data-screen="homeScreen">
-      <span class="brand-icon">¥</span>
-      <span>Cedi to Yuan<small>Currency Exchange</small></span>
-    </a>
-    <button class="support-button" id="headerHelpButton">Help</button>
-  </header>
+<!-- SPLASH -->
+<div class="s hero on" id="splash" style="padding:80px 24px 24px">
+ <div class="logo">C¥</div>
+ <h1 style="font-size:36px;margin-top:14px">CediToYuan</h1>
+ <p style="margin-top:6px">Fast • Safe • Reliable</p>
+ <p style="margin:30px 0">Your Trusted Partner for<br>Ghana Cedis to Chinese Yuan Exchange</p>
+ <div style="font-size:60px">🇬🇭 ➜ 🇨🇳</div>
+ <button class="btn y" onclick="go('onb')">Get Started ›</button>
+</div>
 
-  <main>
-    <section class="screen active" id="homeScreen">
-      <div class="hero">
-        <span class="eyebrow">GHANA ⇄ CHINA</span>
-        <h1>Your Cedis.<br>Your Yuan.</h1>
-        <p>Buy Chinese yuan or sell yuan for Ghana cedis.</p>
-        <div class="hero-actions">
-          <button class="button button-gold" id="homeBuyButton">Buy Yuan</button>
-          <button class="button button-outline" id="homeSellButton">Sell Yuan</button>
-        </div>
-      </div>
+<!-- ONBOARDING (3 slides) -->
+<div class="s" id="onb" style="text-align:center;padding:24px 22px;background:#fff">
+ <div style="text-align:right"><b style="color:var(--g)" onclick="go('login')">Skip</b></div>
+ <div class="logo" style="background:var(--g);color:#fff;margin-top:14px">C¥</div>
+ <div style="font-size:70px;margin-top:30px" id="oe"></div>
+ <h1 style="margin-top:20px" id="ot"></h1>
+ <p style="color:#555;margin:12px 0 30px;line-height:1.5" id="ox"></p>
+ <div style="margin-top:auto">
+  <div class="dots" id="odots"></div>
+  <button class="btn" id="obtn" onclick="nextSlide()">Next ›</button>
+ </div>
+</div>
 
-      <section class="panel">
-        <div class="section-heading">
-          <div><span class="eyebrow">EXCHANGE RATES</span><h2>Today's rates</h2></div>
-          <span class="rate-dot">● Rates</span>
-        </div>
-        <div class="rate-grid">
-          <article class="rate-card">
-            <span>You buy yuan</span>
-            <strong id="homeBuyRate">—</strong>
-            <small>GH₵1 gives you this much yuan</small>
-          </article>
-          <article class="rate-card">
-            <span>You sell yuan</span>
-            <strong id="homeSellRate">—</strong>
-            <small>Each ¥1 gives you this much in cedis</small>
-          </article>
-        </div>
-        <p class="small-note" id="homeRateDetails">Choose an exchange to calculate your amount.</p>
-        <button class="text-button" id="homeRatesButton">Calculate exchange →</button>
-      </section>
+<!-- LOGIN -->
+<div class="s hero" id="login">
+ <div style="padding:30px;text-align:center"><div class="logo">C¥</div><h1 style="margin-top:10px">CediToYuan</h1><small>Fast • Safe • Reliable</small></div>
+ <div class="sheet">
+  <h2 style="text-align:center">Welcome Back</h2><p style="text-align:center;color:#777;margin:6px 0 18px">Login to your account</p>
+  <input id="li" type="email" placeholder="✉ Email Address">
+  <div class="pw"><input id="lp" type="password" placeholder="🔒 Password"><span onclick="eye('lp')">👁</span></div>
+  <div class="row">
+   <label style="font-size:14px;color:#555"><input type="checkbox" id="rem" checked style="width:auto;margin:0 6px 0 0">Remember me</label>
+   <small style="color:var(--g)" onclick="forgot()">Forgot password?</small>
+  </div>
+  <button class="btn" onclick="login()">Login</button>
+  <p style="text-align:center;margin:16px 0;font-size:14px">Don't have an account? <b style="color:var(--g)" onclick="go('reg')">Register</b></p>
+  <p style="text-align:center;color:#999">or</p>
+  <button class="btn o gbtn" onclick="google()"><b style="color:#4285f4">G</b> Continue with Google</button>
+ </div>
+</div>
 
-      <section class="panel">
-        <span class="eyebrow">GET STARTED</span>
-        <h2>How it works</h2>
-        <div class="steps">
-          <div class="step"><span>1</span><div><strong>Choose your exchange</strong><p>Buy yuan with cedis or sell yuan for cedis.</p></div></div>
-          <div class="step"><span>2</span><div><strong>Enter your amount</strong><p>See the estimated amount using the displayed rate.</p></div></div>
-          <div class="step"><span>3</span><div><strong>Send your request</strong><p>Continue on WhatsApp to arrange the exchange.</p></div></div>
-        </div>
-      </section>
+<!-- REGISTER -->
+<div class="s hero" id="reg">
+ <div style="padding:30px;text-align:center"><div class="logo">C¥</div><h1 style="margin-top:10px">CediToYuan</h1></div>
+ <div class="sheet">
+  <h2 style="text-align:center">Create Account</h2><p style="text-align:center;color:#777;margin:6px 0 18px">Join CediToYuan today</p>
+  <input id="rn" placeholder="👤 Full Name">
+  <input id="re" type="email" placeholder="✉ Email Address">
+  <input id="rp" type="tel" placeholder="📱 Phone Number">
+  <div class="pw"><input id="rpw" type="password" placeholder="🔒 Password"><span onclick="eye('rpw')">👁</span></div>
+  <div class="pw"><input id="rcp" type="password" placeholder="🔒 Confirm Password"><span onclick="eye('rcp')">👁</span></div>
+  <button class="btn" onclick="reg()">Register</button>
+  <p style="text-align:center;margin-top:14px;font-size:14px">Already have an account? <b style="color:var(--g)" onclick="go('login')">Login</b></p>
+ </div>
+</div>
 
-      <section class="panel">
-        <span class="eyebrow">NEED ANSWERS?</span>
-        <h2>Frequently asked questions</h2>
-        <div class="faq-list">
-          <details><summary>How do I buy yuan?</summary><p>Choose Buy Yuan, enter the Ghana cedi amount and your details, then send your request on WhatsApp. You pay cedis and receive yuan after the exchange is confirmed.</p></details>
-          <details><summary>How do I sell yuan?</summary><p>Choose Sell Yuan, enter the yuan amount and your details, then send your request on WhatsApp. You provide yuan and receive Ghana cedis after the exchange is confirmed.</p></details>
-          <details><summary>How much will I receive?</summary><p>Use the calculator to estimate your exchange using the displayed rate. Confirm the amount and availability before completing your exchange.</p></details>
-          <details><summary>How do I complete my exchange?</summary><p>Send your request through WhatsApp and follow the instructions agreed with the exchange provider.</p></details>
-        </div>
-        <button class="button button-green full-width" id="homeHelpButton">Contact us on WhatsApp</button>
-      </section>
-    </section>
+<!-- HOME -->
+<div class="s" id="home">
+ <div class="top"><span onclick="openDrawer()">☰</span><b>CediToYuan</b><span class="bell" onclick="go('notif')">🔔<i id="bdot"></i></span></div>
+ <div class="p">
+  <h3 id="hello" style="margin-bottom:10px"></h3>
+  <div class="vb bad" id="closedbanner" style="display:none">🔒 We are currently closed. New orders are paused.</div>
+  <div class="vb wait" id="vbanner" style="display:none">✉ Please verify your email. We sent you a link.<br>
+   <b style="text-decoration:underline" onclick="resend()">Resend link</b> &nbsp;·&nbsp; <b style="text-decoration:underline" onclick="refreshVerify()">I have verified</b></div>
+  <div class="vb ok" id="nofee" style="display:none;margin-top:0">🎉 <b>No fees!</b> You pay exactly what you enter.</div>
+  <div class="card tip" id="howcard" style="display:none">
+   <b>👋 New here?</b><br><small style="color:#6b5a1a">See how CediToYuan works in one minute.</small>
+   <div><button class="btn sm" onclick="go('how')">Show me</button><button class="btn sm o" onclick="dismissHow()">Later</button></div>
+  </div>
+  <div class="card"><small>Exchange Rate</small>
+   <div class="row"><div class="big" id="hr"></div><span onclick="home();toast('Rate is up to date')" style="font-size:22px;color:var(--g)">⟳</span></div>
+   <small id="hu"></small></div>
+  <div class="card"><small>Quick calculator</small>
+   <div class="two" style="margin-top:8px;align-items:center">
+    <input id="qc" type="number" inputmode="decimal" placeholder="GH₵ amount" oninput="qcalc()" style="margin:0">
+    <div class="big" id="qcout" style="font-size:22px;text-align:center">¥ 0.00</div>
+   </div>
+   <button class="btn" style="margin-top:12px" onclick="buyFromQuick()">Buy Yuan ›</button>
+  </div>
+  <div class="two">
+   <div class="card"><small>🇬🇭 GHS Spent</small><div class="big" style="font-size:20px" id="gb">GH₵ 0.00</div></div>
+   <div class="card"><small>🇨🇳 CNY Received</small><div class="big" style="font-size:20px" id="cb">¥ 0.00</div></div>
+  </div>
+  <div class="tile g" onclick="go('buy')"><div><b>Buy Yuan</b><br><small>Get Chinese Yuan with GHS</small></div><span>›</span></div>
+  <div class="tile" onclick="go('orders')"><div><b>My Orders</b><br><small>View your exchange history</small></div><span>›</span></div>
+  <div class="tile" onclick="go('account')"><div><b>Profile</b><br><small>Manage your account</small></div><span>›</span></div>
+  <div class="grid3" style="text-align:center;margin-top:8px">
+   <div>🛡️<br><small>Secure</small></div><div>⚡<br><small>Fast</small></div><div>🎧<br><small>24/7 Support</small></div>
+  </div>
+ </div>
+</div>
 
-    <section class="screen" id="buyScreen">
-      <div class="page-heading"><span class="eyebrow">GHANA CEDIS → CHINESE YUAN</span><h1>Buy Yuan</h1><p>Pay in Ghana cedis and receive Chinese yuan.</p></div>
-      <div class="panel">
-        <div class="simple-rate"><span>Buy rate</span><strong id="buyScreenRate">—</strong></div>
-        <button class="button button-green full-width" id="buyContinue">Calculate and buy yuan</button>
-      </div>
-    </section>
+<!-- BUY -->
+<div class="s hasfoot" id="buy">
+ <div class="top"><span onclick="back()">←</span><b>Buy Yuan</b><span></span></div>
+ <div class="p"><div class="card">
+  <div class="two" style="text-align:center">
+   <div>🇬🇭<br><b>GHS</b><br><small>(You Pay)</small><input id="amt" type="number" inputmode="decimal" value="500" oninput="calc()" style="text-align:center;font-size:22px;font-weight:700;margin-top:8px"></div>
+   <div>🇨🇳<br><b>CNY</b><br><small>(You Get)</small><div class="big" id="cny" style="margin-top:24px">¥ 0</div></div>
+  </div>
+  <div class="row"><small>Exchange Rate</small><small id="br"></small></div>
+  <small>Select Amount</small>
+  <div class="grid3" id="chips"></div>
+  <small id="minmax"></small>
+ </div>
+ <div class="vb ok" id="nofeeb" style="display:none">✅ No fees. You pay exactly what you enter.</div>
+ <p style="text-align:center;font-size:14px" id="rcv"></p></div>
+ <div class="foot"><button class="btn" onclick="toRecipient()">Continue ›</button></div>
+</div>
 
-    <section class="screen" id="sellScreen">
-      <div class="page-heading"><span class="eyebrow">CHINESE YUAN → GHANA CEDIS</span><h1>Sell Yuan</h1><p>Exchange your Chinese yuan for Ghana cedis.</p></div>
-      <div class="panel">
-        <div class="simple-rate"><span>Sell rate</span><strong id="sellScreenRate">—</strong></div>
-        <button class="button button-green full-width" id="sellContinue">Calculate and sell yuan</button>
-      </div>
-    </section>
+<!-- RECIPIENT -->
+<div class="s hasfoot" id="recv">
+ <div class="top"><span onclick="back()">←</span><b>Receive Yuan</b><span></span></div>
+ <div class="p">
+  <h3 style="margin-bottom:4px">Where should we send your Yuan?</h3>
+  <small>Choose how you want to receive it</small>
+  <div id="rts" style="margin-top:12px"></div>
+  <div class="card">
+   <small id="rnlabel">Full name on your account</small>
+   <input id="rname" placeholder="Full name exactly as on the account">
+   <small>Account details</small>
+   <input id="racct" placeholder="Account">
+   <div id="rbankbox" style="display:none">
+    <small>Bank name</small>
+    <input id="rbank" placeholder="e.g. ICBC, Bank of China">
+   </div>
+   <small>Your phone number</small>
+   <input id="rphone" type="tel" placeholder="e.g. 0547201547">
+  </div>
+  <div class="note">⚠️ The name must match the name on your Alipay, WeChat or bank account exactly. This prevents Yuan from going to the wrong person.</div>
+  <label style="display:flex;align-items:center;margin-top:14px;font-size:14px">
+   <input type="checkbox" id="rconf" style="width:auto;margin:0 10px 0 0">I confirm the name and account are correct
+  </label>
+ </div>
+ <div class="foot"><button class="btn" onclick="toSummary()">Continue ›</button></div>
+</div>
 
-    <section class="screen" id="liveRatesScreen">
-      <div class="page-heading"><span class="eyebrow">EXCHANGE CALCULATOR</span><h1>Calculate your exchange</h1><p>Choose a direction and enter your amount.</p></div>
-      <div class="panel">
-        <label for="liveDirection">I want to</label>
-        <select id="liveDirection">
-          <option value="buy">Buy yuan with Ghana cedis</option>
-          <option value="sell">Sell yuan for Ghana cedis</option>
-        </select>
-        <label for="liveAmount" id="liveAmountLabel">Amount in Ghana cedis (GH₵)</label>
-        <div class="amount-input"><span id="liveCurrencyPrefix">GH₵</span><input id="liveAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter amount"></div>
-        <div class="result-box"><span>Estimated amount</span><strong id="liveResult">¥0.00</strong><small id="liveCalculationNote">Based on the displayed rate.</small></div>
-        <button class="button button-green full-width" id="liveContinueButton">Continue</button>
-        <button class="button button-light full-width" id="liveHelpButton">Ask a question</button>
-      </div>
-      <div class="panel">
-        <h2>Current rates</h2>
-        <div class="simple-rate"><span>Buy yuan</span><strong id="liveBuyRate">—</strong></div>
-        <div class="simple-rate"><span>Sell yuan</span><strong id="liveSellRate">—</strong></div>
-      </div>
-    </section>
+<!-- SUMMARY -->
+<div class="s hasfoot" id="summary">
+ <div class="top"><span onclick="back()">←</span><b>Order Summary</b><span></span></div>
+ <div class="p"><div class="card" id="sumBox"></div>
+  <div class="note">🛡️ Your transaction is secure and protected.</div></div>
+ <div class="foot"><button class="btn" onclick="go('pay')">Proceed to Payment ›</button></div>
+</div>
 
-    <section class="screen" id="orderScreen">
-      <div class="page-heading"><span class="eyebrow">EXCHANGE REQUEST</span><h1 id="orderTitle">Buy Yuan</h1><p id="orderSubtitle">Enter your details to continue.</p></div>
-      <form class="panel form" id="orderForm">
-        <div class="simple-rate"><span>Rate</span><strong id="formRateStatus">—</strong></div>
+<!-- PAYMENT METHOD -->
+<div class="s hasfoot" id="pay">
+ <div class="top"><span onclick="back()">←</span><b>Payment Method</b><span></span></div>
+ <div class="p"><h3 style="margin-bottom:12px">Choose Payment Method</h3><div id="pms"></div>
+  <div class="note">🔒 After you place your order, you will get our payment details. Send the money, then enter your transaction ID.</div></div>
+ <div class="foot"><button class="btn" id="paybtn" onclick="placeOrder()">Place Order ›</button></div>
+</div>
 
-        <label for="amount" id="amountLabel">Amount in Ghana cedis</label>
-        <div class="amount-input"><span id="currencyPrefix">GH₵</span><input id="amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00" required></div>
-        <div class="estimate-box"><span>You will receive approximately</span><strong id="estimateValue">—</strong><small id="estimateNote">Calculated using the displayed rate.</small></div>
+<!-- PROCESSING -->
+<div class="s" id="proc" style="text-align:center">
+ <div class="top"><span></span><b>Placing Order</b><span></span></div>
+ <div class="spin"></div>
+ <h2>Please wait...</h2><p style="color:#777;margin-top:8px">We are placing your order securely.<br>This may take a few seconds.</p>
+ <div class="steps"><i class="a"></i><i id="st2"></i><i id="st3"></i></div>
+</div>
 
-        <label for="customerName">Your name</label>
-        <input id="customerName" name="customerName" type="text" autocomplete="name" placeholder="Enter your name" required>
+<!-- ORDER PLACED -->
+<div class="s hasfoot" id="done">
+ <div class="p" style="text-align:center;padding:20px">
+  <div class="chk">✔</div>
+  <h1>Order Placed!</h1>
+  <p style="color:#555;margin:10px 0 20px" id="dtxt"></p>
+  <div class="card" style="text-align:left;background:#e8f1eb"><small>Order ID</small><br><b id="did"></b><br><br><small>Date &amp; Time</small><br><b id="ddt"></b></div>
+  <div id="dpay" style="text-align:left"></div>
+ </div>
+ <div class="foot">
+  <button class="btn" onclick="go('order')">View Order &amp; Pay</button>
+  <button class="btn o" onclick="goHome()">Back to Home</button>
+ </div>
+</div>
 
-        <label for="customerPhone">WhatsApp phone number</label>
-        <input id="customerPhone" name="customerPhone" type="tel" autocomplete="tel" placeholder="e.g. 0241234567" required>
+<!-- ORDER DETAILS -->
+<div class="s" id="order">
+ <div class="top"><span onclick="back()">←</span><b>Order Details</b><span></span></div>
+ <div class="p" id="obody"></div>
+</div>
 
-        <label for="paymentMethod">Preferred payment method</label>
-        <select id="paymentMethod" name="paymentMethod" required>
-          <option value="">Select a method</option>
-          <option value="Mobile Money">Mobile Money</option>
-          <option value="Bank transfer">Bank transfer</option>
-          <option value="Discuss on WhatsApp">Discuss on WhatsApp</option>
-        </select>
+<!-- MY ORDERS -->
+<div class="s" id="orders">
+ <div class="top"><span onclick="back()">←</span><b>My Orders</b><span></span></div>
+ <div class="p"><div class="tabs" id="tabs"></div><div id="ol"></div></div>
+</div>
 
-        <label for="orderNote">Additional message (optional)</label>
-        <textarea id="orderNote" name="orderNote" rows="3" placeholder="Any details you want to share"></textarea>
+<!-- NOTIFICATIONS -->
+<div class="s" id="notif">
+ <div class="top"><span onclick="back()">←</span><b>Notifications</b><span></span></div>
+ <div class="p" id="nl"></div>
+</div>
 
-        <label class="checkbox-row"><input id="confirmDetails" type="checkbox" required><span>I have checked my details and estimated amount.</span></label>
-        <button class="button button-green full-width" type="submit" id="submitRequest">Send request on WhatsApp</button>
-        <button class="button button-light full-width" type="button" id="cancelOrder">Cancel</button>
-      </form>
-    </section>
+<!-- HOW IT WORKS -->
+<div class="s" id="how">
+ <div class="top"><span onclick="back()">←</span><b>How It Works</b><span></span></div>
+ <div class="p">
+  <div class="card" style="text-align:center"><div style="font-size:44px">💱</div><h3>Buy Yuan in 5 easy steps</h3></div>
+  <div class="card step"><i>1</i><div><b>Check today's rate</b><br><small>The Home screen shows how many Yuan you get for 1 Cedi. Use the quick calculator to try any amount.</small></div></div>
+  <div class="card step"><i>2</i><div><b>Enter your amount</b><br><small>Tap Buy Yuan, type how many Cedis you want to spend, or pick a quick amount. You see the Yuan you will get.</small></div></div>
+  <div class="card step"><i>3</i><div><b>Add where to send your Yuan</b><br><small>Choose Alipay, WeChat Pay or a Chinese bank. Write the full name exactly as it is on that account so your money goes to the right person.</small></div></div>
+  <div class="card step"><i>4</i><div><b>Place your order and pay</b><br><small>Pay with Mobile Money or bank transfer using the payment details we show you. Then type your transaction ID and tap "I Have Paid".</small></div></div>
+  <div class="card step"><i>5</i><div><b>We confirm and send</b><br><small>We confirm your payment and send your Yuan. You get a notification 🔔 and can follow every step in My Orders.</small></div></div>
+  <h3 style="margin:16px 0 8px">Questions</h3>
+  <div class="card"><b>Is my money safe?</b><br><small>Every order has its own ID and status that you can follow in My Orders. We only send Yuan after we confirm your payment.</small></div>
+  <div class="card"><b>What if I typed the wrong account?</b><br><small>Message us right away on WhatsApp before we send. Always double check the name on your account.</small></div>
+  <div class="card"><b>Can I cancel an order?</b><br><small>Yes, as long as you have not paid. If you already paid, contact support.</small></div>
+  <div class="card"><b>Need help?</b><br><small>Chat, call or text us any time on 0547201547.</small></div>
+  <a class="btn" href="https://wa.me/233547201547?text=Hello%20CediToYuan%2C%20I%20have%20a%20question." target="_blank">💬 Ask us on WhatsApp</a>
+  <button class="btn o" onclick="go('buy')">Start Buying ›</button>
+ </div>
+</div>
 
-    <section class="screen" id="helpScreen">
-      <div class="page-heading"><span class="eyebrow">WE'RE HERE TO HELP</span><h1>Contact us</h1><p>Ask about buying or selling yuan.</p></div>
-      <div class="panel contact-panel">
-        <div class="contact-icon">✆</div>
-        <h2>WhatsApp support</h2>
-        <p>Send us your question and we'll discuss your exchange.</p>
-        <button class="button button-green full-width" id="helpWhatsAppButton">Chat on WhatsApp</button>
-      </div>
-      <div class="panel">
-        <h2>Frequently asked questions</h2>
-        <div class="faq-list">
-          <details><summary>How do I buy yuan?</summary><p>Enter your cedi amount, submit your request on WhatsApp, and follow the agreed exchange instructions.</p></details>
-          <details><summary>How do I sell yuan?</summary><p>Enter your yuan amount, submit your request on WhatsApp, and follow the agreed exchange instructions.</p></details>
-          <details><summary>Are calculator amounts final?</summary><p>The calculator gives an estimate. Confirm the rate, amount and availability before completing the exchange.</p></details>
-          <details><summary>When is the exchange complete?</summary><p>Your exchange is complete after the agreed funds have been received and the exchange has been carried out.</p></details>
-        </div>
-      </div>
-    </section>
-  </main>
+<!-- ACCOUNT -->
+<div class="s" id="account">
+ <div class="top"><span></span><b>My Account</b><span>⚙</span></div>
+ <div class="p">
+  <div class="tile g" style="align-items:center"><div>👤 <b id="an"></b><br><small id="ae"></small></div><span>›</span></div>
+  <button class="btn y" id="adminBtn" style="display:none;margin-bottom:12px" onclick="go('admin')">⚙ Admin Panel</button>
+  <div class="card" id="alist"></div>
+  <button class="btn o" onclick="logout()">Log out</button>
+ </div>
+</div>
 
-  <nav class="bottom-nav" aria-label="Main navigation">
-    <button class="nav-button active" data-screen="homeScreen"><span>⌂</span>Home</button>
-    <button class="nav-button" data-screen="buyScreen"><span>¥</span>Buy Yuan</button>
-    <button class="nav-button" data-screen="sellScreen"><span>⇄</span>Sell Yuan</button>
-    <button class="nav-button" data-screen="liveRatesScreen"><span>▤</span>Rates</button>
-    <button class="nav-button" data-screen="helpScreen"><span>?</span>Help</button>
-  </nav>
+<div class="s hasfoot" id="personal">
+ <div class="top"><span onclick="back()">←</span><b>Personal Information</b><span></span></div>
+ <div class="p"><div class="card">
+  <small>Full name</small><input id="pn">
+  <small>Email (cannot be changed)</small><input id="pe" disabled>
+  <small>Phone number</small><input id="pp" type="tel" placeholder="e.g. 0547201547">
+ </div></div>
+ <div class="foot"><button class="btn" onclick="savePersonal()">Save Changes</button></div>
+</div>
 
-  <footer><span>© <span id="currentYear"></span> Cedi to Yuan</span><span>GHS ⇄ CNY</span></footer>
-  <div id="toast" class="toast" role="status" hidden></div>
+<div class="s hasfoot" id="password">
+ <div class="top"><span onclick="back()">←</span><b>Change Password</b><span></span></div>
+ <div class="p"><div class="card">
+  <p>We will send a password reset link to:</p>
+  <p style="margin-top:8px"><b id="pwemail"></b></p>
+  <p style="margin-top:12px;color:#777;font-size:14px">Open the link in your email and choose a new password.</p>
+ </div></div>
+ <div class="foot"><button class="btn" onclick="sendReset()">Send Reset Link</button></div>
+</div>
 
-  <script src="app.js"></script>
-</body>
-</html>
+<div class="s" id="help">
+ <div class="top"><span onclick="back()">←</span><b>Help &amp; Support</b><span></span></div>
+ <div class="p">
+  <div class="card" style="text-align:center">
+   <div style="font-size:40px">🎧</div>
+   <h3>We're here 24/7</h3>
+   <small>Reach us any time on 0547201547</small>
+  </div>
+  <button class="btn y" onclick="go('how')">❓ How the app works</button>
+  <a class="btn" href="https://wa.me/233547201547?text=Hello%20CediToYuan%2C%20I%20need%20help." target="_blank">💬 Chat on WhatsApp</a>
+  <a class="btn o" href="tel:0547201547">📞 Call 0547201547</a>
+  <a class="btn o" href="sms:0547201547">✉ Send a Text Message</a>
+ </div>
+</div>
+
+<div class="s" id="about">
+ <div class="top"><span onclick="back()">←</span><b>About Us</b><span></span></div>
+ <div class="p">
+  <div class="card" style="text-align:center">
+   <div class="logo" style="background:var(--g);color:#fff">C¥</div>
+   <h2 style="margin-top:12px">CediToYuan</h2>
+   <small>Fast • Safe • Reliable</small>
+  </div>
+  <div class="card">
+   <p>CediToYuan helps you buy Chinese Yuan (CNY) with your Ghana Cedis (GHS) in just a few taps.</p>
+   <p style="margin-top:10px">Send Yuan to Alipay, WeChat Pay or a Chinese bank account, with secure processing and support any time.</p>
+  </div>
+  <small style="display:block;text-align:center">Version 2.1</small>
+ </div>
+</div>
+
+<!-- ADMIN -->
+<div class="s" id="admin">
+ <div class="top"><span onclick="back()">←</span><b>Admin Panel</b><span></span></div>
+ <div class="p">
+  <div id="astat"></div>
+  <div class="card">
+   <b>Settings</b><br><br>
+   <small>Rate: Yuan for 1 GH₵ (example 0.542)</small>
+   <input id="ar" type="number" step="0.0001" inputmode="decimal">
+   <small>Fee in GH₵ per order (type 0 for NO fee)</small>
+   <input id="af" type="number" step="0.01" inputmode="decimal">
+   <small>Minimum order (GH₵)</small>
+   <input id="amin" type="number" inputmode="decimal">
+   <small>Maximum order (GH₵)</small>
+   <input id="amax" type="number" inputmode="decimal">
+   <small>Payment instructions customers will see (MoMo number, name, bank details)</small>
+   <textarea id="apay" rows="4" placeholder="MTN MoMo: 0547201547&#10;Name: John Gamor"></textarea>
+   <label style="display:flex;align-items:center;font-size:15px;margin-bottom:6px">
+    <input type="checkbox" id="aopen" style="width:auto;margin:0 10px 0 0">We are open (accepting orders)
+   </label>
+   <button class="btn" onclick="saveCfg()">Save Settings</button>
+  </div>
+  <h3 style="margin:16px 0 10px">All Orders</h3>
+  <input id="asearch" placeholder="🔍 Search name, phone, order ID" oninput="adminList()">
+  <div class="tabs" id="atabs"></div>
+  <div id="aol"></div>
+  <button class="btn o" onclick="exportCsv()">⬇ Download all orders (CSV)</button>
+ </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div id="nav">
+ <div data-p="home" onclick="navTo('home')">🏠<br>Home</div>
+ <div data-p="orders" onclick="navTo('orders')">📋<br>Orders</div>
+ <div data-p="account" onclick="navTo('account')">👤<br>Profile</div>
+</div>
+
+<!-- SIDE MENU -->
+<div id="drawer" onclick="closeDrawer()">
+ <div class="panel" onclick="event.stopPropagation()">
+  <div class="dh"><div class="logo" style="margin:0 0 10px">C¥</div><b id="dn">CediToYuan</b><br><small id="de"></small></div>
+  <div class="di" onclick="drawerGo('home')">🏠 Home</div>
+  <div class="di" onclick="drawerGo('buy')">💱 Buy Yuan</div>
+  <div class="di" onclick="drawerGo('orders')">📋 My Orders</div>
+  <div class="di" onclick="drawerGo('notif')">🔔 Notifications</div>
+  <div class="di" onclick="drawerGo('how')">❓ How It Works</div>
+  <div class="di" onclick="closeDrawer();shareApp()">📤 Invite Friends</div>
+  <div class="di" onclick="drawerGo('account')">👤 Profile</div>
+  <div class="di" onclick="drawerGo('help')">🎧 Help &amp; Support</div>
+  <div class="di" onclick="drawerGo('about')">ℹ️ About Us</div>
+  <div class="di" id="dadmin" style="display:none" onclick="drawerGo('admin')">⚙ Admin Panel</div>
+ </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+window.onerror=function(m){alert("ERROR: "+m)};
+window.addEventListener("unhandledrejection",function(e){alert("ERROR: "+(e.reason&&e.reason.message||e.reason))});
+</script>
+<script type="module" src="app.js"></script>
+</body></html>
