@@ -1,21 +1,22 @@
 "use strict";
 
-const CACHE_NAME = "cedi-to-yuan-shell-v3";
+const CACHE_NAME = "cedi-to-yuan-shell-v11";
 
 const APP_FILES = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
-  "./manifest.json",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./firebase-auth.js",
+  "./manifest.json"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_FILES))
+      .then((cache) => Promise.all(
+        APP_FILES.map((file) => cache.add(file).catch(() => null))
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -23,13 +24,10 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((cacheNames) => Promise.all(
-        cacheNames
-          .filter((name) =>
-            name.startsWith("cedi-to-yuan-shell-") &&
-            name !== CACHE_NAME
-          )
-          .map((name) => caches.delete(name))
+      .then((names) => Promise.all(
+        names
+          .filter((n) => n.startsWith("cedi-to-yuan-shell-") && n !== CACHE_NAME)
+          .map((n) => caches.delete(n))
       ))
       .then(() => self.clients.claim())
   );
@@ -39,10 +37,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  if (
-    request.method !== "GET" ||
-    url.origin !== self.location.origin
-  ) {
+  if (request.method !== "GET" || url.origin !== self.location.origin) {
     return;
   }
 
@@ -52,16 +47,13 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           if (response && response.ok) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put("./index.html", copy);
-            });
+            caches.open(CACHE_NAME).then((c) => c.put("./index.html", copy));
           }
           return response;
         })
-        .catch(async () => {
-          return (await caches.match("./index.html")) ||
-            (await caches.match("./"));
-        })
+        .catch(async () =>
+          (await caches.match("./index.html")) || (await caches.match("./"))
+        )
     );
     return;
   }
@@ -71,14 +63,10 @@ self.addEventListener("fetch", (event) => {
       .then((response) => {
         if (response && response.ok) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, copy);
-          });
+          caches.open(CACHE_NAME).then((c) => c.put(request, copy));
         }
         return response;
       })
-      .catch(async () => {
-        return await caches.match(request);
-      })
+      .catch(async () => await caches.match(request))
   );
 });
