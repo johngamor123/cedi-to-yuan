@@ -37,6 +37,8 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
 .ts.a i{background:var(--y)}
 .ts small{font-size:12px}
 .tip{background:linear-gradient(160deg,#fff7df,#ffeeb3);border:1px solid #f5d77a}
+.copy{text-align:center;font-size:12px;color:#999;margin:18px 0 6px}
+.legal p{font-size:14px;line-height:1.6;margin-bottom:8px;color:#333}
 </style>
 <title>CediToYuan</title></head><body>
 
@@ -78,6 +80,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <p style="text-align:center;margin:16px 0;font-size:14px">Don't have an account? <b style="color:var(--g)" onclick="go('reg')">Register</b></p>
   <p style="text-align:center;color:#999">or</p>
   <button class="btn o gbtn" onclick="google()"><b style="color:#4285f4">G</b> Continue with Google</button>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.<br><b style="color:var(--g)" onclick="go('terms')">Terms &amp; Privacy</b></p>
  </div>
 </div>
 
@@ -91,8 +94,10 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <input id="rp" type="tel" placeholder="📱 Phone Number">
   <div class="pw"><input id="rpw" type="password" placeholder="🔒 Password"><span onclick="eye('rpw')">👁</span></div>
   <div class="pw"><input id="rcp" type="password" placeholder="🔒 Confirm Password"><span onclick="eye('rcp')">👁</span></div>
+  <p style="font-size:13px;color:#777;margin-bottom:4px">By registering you agree to our <b style="color:var(--g)" onclick="go('terms')">Terms &amp; Privacy</b>.</p>
   <button class="btn" onclick="reg()">Register</button>
   <p style="text-align:center;margin-top:14px;font-size:14px">Already have an account? <b style="color:var(--g)" onclick="go('login')">Login</b></p>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.</p>
  </div>
 </div>
 
@@ -262,6 +267,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <button class="btn y" id="adminBtn" style="display:none;margin-bottom:12px" onclick="go('admin')">⚙ Admin Panel</button>
   <div class="card" id="alist"></div>
   <button class="btn o" onclick="logout()">Log out</button>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.</p>
  </div>
 </div>
 
@@ -280,7 +286,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
  <div class="p"><div class="card">
   <p>We will send a password reset link to:</p>
   <p style="margin-top:8px"><b id="pwemail"></b></p>
-  <p style="margin-top:12px;color:#777;font-size:14px">Open the link in your email and choose a new password.</p>
+  <p style="margin-top:12px;color:#777;font-size:14px">Open the link in your email and choose a new password. If you don't see it, check your Spam or Promotions folder.</p>
  </div></div>
  <div class="foot"><button class="btn" onclick="sendReset()">Send Reset Link</button></div>
 </div>
@@ -312,7 +318,33 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
    <p>CediToYuan helps you buy Chinese Yuan (CNY) with your Ghana Cedis (GHS) in just a few taps.</p>
    <p style="margin-top:10px">Send Yuan to Alipay, WeChat Pay or a Chinese bank account, with secure processing and support any time.</p>
   </div>
-  <small style="display:block;text-align:center">Version 2.1</small>
+  <button class="btn o" onclick="go('terms')">Terms &amp; Privacy</button>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.<br>Version 2.2</p>
+ </div>
+</div>
+
+<!-- TERMS & PRIVACY -->
+<div class="s" id="terms">
+ <div class="top"><span onclick="back()">←</span><b>Terms &amp; Privacy</b><span></span></div>
+ <div class="p legal">
+  <div class="card">
+   <h3 style="margin-bottom:8px">Terms of Use</h3>
+   <p>1. CediToYuan helps you buy Chinese Yuan (CNY) with Ghana Cedis (GHS).</p>
+   <p>2. You must enter correct receiving details. We send Yuan only to the account details you give us. If you enter wrong details, the Yuan may not be recoverable.</p>
+   <p>3. An order is completed after we confirm your payment. Rates can change. The rate shown when you place an order is the rate for that order.</p>
+   <p>4. You may only use CediToYuan for lawful purposes. We may refuse or cancel any order we believe is fraudulent or unlawful.</p>
+   <p>5. If an order is cancelled after you paid, contact support to arrange your refund.</p>
+   <p>6. For help, contact us on 0547201547.</p>
+  </div>
+  <div class="card">
+   <h3 style="margin-bottom:8px">Privacy Policy</h3>
+   <p>We collect your name, email, phone number, the receiving account details you enter (Alipay, WeChat or bank), and your order history.</p>
+   <p>We use this information to process your orders, confirm payments, contact you about your orders and give you support.</p>
+   <p>Your data is stored securely with Google Firebase. We do not sell your personal data. We share receiving details only as needed to complete your order.</p>
+   <p>To correct or delete your information, contact us on 0547201547.</p>
+   <small>Last updated: October 2026</small>
+  </div>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.</p>
  </div>
 </div>
 
@@ -338,7 +370,13 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
    </label>
    <button class="btn" onclick="saveCfg()">Save Settings</button>
   </div>
-  <h3 style="margin:16px 0 10px">All Orders</h3>
+  <div class="card">
+   <b>📢 Announcement to all customers</b><br><br>
+   <textarea id="aann" rows="3" placeholder="e.g. Rate updated! 1 GHS = 0.55 CNY today."></textarea>
+   <button class="btn" style="margin-top:0" onclick="sendAnn()">Send Announcement</button>
+   <button class="btn o" onclick="clearAnn()">Clear announcement</button>
+  </div>
+  <h3 style="margin:16px 0 10px">Orders &amp; Customers</h3>
   <input id="asearch" placeholder="🔍 Search name, phone, order ID" oninput="adminList()">
   <div class="tabs" id="atabs"></div>
   <div id="aol"></div>
@@ -366,7 +404,10 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <div class="di" onclick="drawerGo('account')">👤 Profile</div>
   <div class="di" onclick="drawerGo('help')">🎧 Help &amp; Support</div>
   <div class="di" onclick="drawerGo('about')">ℹ️ About Us</div>
+  <div class="di" onclick="drawerGo('terms')">📄 Terms &amp; Privacy</div>
   <div class="di" id="dadmin" style="display:none" onclick="drawerGo('admin')">⚙ Admin Panel</div>
+  <div class="di" style="color:#c0392b" onclick="closeDrawer();logout()">🚪 Log out</div>
+  <p class="copy" style="padding:10px 0 24px">© 2026 CediToYuan.<br>All rights reserved.</p>
  </div>
 </div>
 
