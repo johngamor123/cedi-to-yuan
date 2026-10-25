@@ -27,6 +27,19 @@ function toast(m) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 2500);
 }
 
+/* ---------- DATE + TIME (same on every phone: 25 Oct 2026, 10:33:12 PM) ---------- */
+const fmt = d => {
+  const day = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+  return day + ', ' + time;
+};
+function tickClock() {
+  const c = $('clock'); if (!c) return;
+  const d = new Date();
+  c.textContent = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).format(d)
+    + ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+}
+
 /* ---------- NIGHT / DAY MODE ---------- */
 const THEME_LABEL = { auto: "Auto (follows your phone)", light: "Day mode ☀️", dark: "Night mode 🌙" };
 const getTheme = () => localStorage.theme || "auto";
@@ -105,6 +118,7 @@ function notify(msg) { beep(); toast(msg) }
 const METHODS = [
   ["Pay with Paystack", "Card, Mobile Money, Bank (coming soon)", false],
   ["MTN Mobile Money", "Pay with MTN MoMo", true],
+  ["Telecel Cash", "Pay with Telecel Cash", true],
   ["AirtelTigo Money", "Pay with AirtelTigo Money", true],
   ["Bank Transfer", "Direct Bank Transfer", true]
 ];
@@ -133,7 +147,7 @@ let seenFirstAnn = false, lastAnnAt = 0;
 
 const isAdmin = () => !!(me && me.email && me.email.toLowerCase() === ADMIN_EMAIL);
 const byTime = (a, b) => (b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 9e12) - (a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 9e12);
-const dt = o => o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString() : "Just now";
+const dt = o => o.createdAt && o.createdAt.toDate ? fmt(o.createdAt.toDate()) : (o.clientTime ? fmt(new Date(o.clientTime)) : "Just now");
 const evTime = o => o.updatedAt && o.updatedAt.seconds ? o.updatedAt.seconds * 1000 : 0;
 const annAt = () => ann && ann.at && ann.at.seconds ? ann.at.seconds * 1000 : 0;
 const makeId = () => {
@@ -322,9 +336,9 @@ const unread = () => {
 function updateBell() { const d = $('bdot'); if (d) d.style.display = unread() > 0 ? 'block' : 'none' }
 function notifShow() {
   const l = notifs();
-  const annHtml = ann && ann.text ? `<div class="card" style="background:#fff7df"><b>📢 Announcement</b><br>${esc(ann.text)}<br><small>${annAt() ? new Date(annAt()).toLocaleString() : ''}</small></div>` : '';
+  const annHtml = ann && ann.text ? `<div class="card" style="background:#fff7df"><b>📢 Announcement</b><br>${esc(ann.text)}<br><small>${annAt() ? fmt(new Date(annAt())) : ''}</small></div>` : '';
   const items = l.map(o => `<div class="card" onclick="openOrder('${o.id}')">
-    <b>${esc(o.lastEvent)}</b><br><small>Order ${esc(o.orderId)} · ${new Date(evTime(o)).toLocaleString()}</small></div>`).join('');
+    <b>${esc(o.lastEvent)}</b><br><small>Order ${esc(o.orderId)} · ${fmt(new Date(evTime(o)))}</small></div>`).join('');
   $('nl').innerHTML = (annHtml + items) || '<p style="text-align:center;color:#888;margin-top:40px">No notifications yet</p>';
   localStorage[seenKey()] = Date.now();
   updateBell();
@@ -344,8 +358,9 @@ function dismissHow() { localStorage.howdone = '1'; $('howcard').style.display =
 function home() {
   const first = me ? String(me.displayName || profile.name || "").trim().split(" ")[0] : "";
   $('hello').textContent = first ? "Hello, " + first + " 👋" : "Hello 👋";
+  tickClock();
   $('hr').textContent = rateTxt();
-  $('hu').textContent = cfg && cfg.updated && cfg.updated.toDate ? "Last updated: " + cfg.updated.toDate().toLocaleString() : "";
+  $('hu').textContent = cfg && cfg.updated && cfg.updated.toDate ? "Last updated: " + fmt(cfg.updated.toDate()) : "";
   const done = myOrders.filter(o => o.status == "Completed");
   $('cb').textContent = "¥ " + f(done.reduce((a, o) => a + +o.cny, 0));
   $('gb').textContent = "GH₵ " + f(done.reduce((a, o) => a + +o.ghs, 0));
@@ -457,7 +472,7 @@ async function placeOrder() {
   setTimeout(() => $('st3').className = 'a', 1400);
   const o = {
     uid: me.uid, name: me.displayName || profile.name || "", email: me.email || "",
-    phone: $('rphone').value.trim(), orderId: makeId(),
+    phone: $('rphone').value.trim(), orderId: makeId(), clientTime: Date.now(),
     ghs: g, fee, rate: +cfg.rate, cny: cnyOf(g), method,
     status: "Pending", payStatus: "Awaiting payment",
     recvType: rtype, recvName: $('rname').value.trim(), recvAcct: $('racct').value.trim(),
@@ -497,7 +512,7 @@ function doneShow() {
   if (!o) return;
   $('dtxt').textContent = "Your request to buy ¥ " + f(o.cny) + " CNY has been received. Please pay to complete it.";
   $('did').textContent = o.orderId;
-  $('ddt').textContent = dt(o) == "Just now" ? new Date().toLocaleString() : dt(o);
+  $('ddt').textContent = dt(o);
   $('dpay').innerHTML = payBox(o);
 }
 function openOrder(id) { openId = id; go('order') }
@@ -538,7 +553,7 @@ function orderShow() {
     <div class="row"><b style="font-size:22px">¥ ${f(o.cny)}</b><span class="tag ${o.status}">${o.status}</span></div>
     ${tracker(o)}
     <div class="orow"><span>Order ID</span><b>${esc(o.orderId)}</b></div>
-    <div class="orow"><span>Date</span><b>${dt(o)}</b></div>
+    <div class="orow"><span>Date &amp; time</span><b>${dt(o)}</b></div>
     <div class="orow"><span>GHS Amount</span><b>GH₵ ${f(o.ghs)}</b></div>
     <div class="orow"><span>Rate</span><b>1 GHS = ${rateOf(o)} CNY</b></div>
     ${+o.fee > 0 ? `<div class="orow"><span>Fee</span><b>GH₵ ${f(o.fee)}</b></div>` : ''}
@@ -588,7 +603,7 @@ function acc() {
 function accGo(p) {
   if (p == 'theme') return cycleTheme();
   if (p == 'share') return shareApp();
-  if (p == 'pmethods') return alert('You can pay with MTN Mobile Money, AirtelTigo Money or Bank Transfer. Paystack (card) is coming soon.');
+  if (p == 'pmethods') return alert('You can pay with MTN Mobile Money, Telecel Cash, AirtelTigo Money or Bank Transfer. Paystack (card) is coming soon.');
   go(p);
 }
 function personalShow() {
@@ -773,7 +788,7 @@ async function addNote(id) {
   try { await adminSet(id, { note: n.trim() }, false); toast('Note saved') } catch (x) { err(x) }
 }
 function exportCsv() {
-  const rows = [["Date","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient account","Bank","Customer ref"]];
+  const rows = [["Date and time","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient account","Bank","Customer ref"]];
   allOrders.forEach(o => rows.push([dt(o), o.orderId, o.name, o.phone, o.email, o.ghs, o.fee, rateOf(o), o.cny, o.method, o.payStatus || '', o.status, o.recvType || '', o.recvName || '', o.recvAcct || '', o.recvBank || '', o.customerRef || '']));
   const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(",")).join("\n");
   const a = document.createElement('a');
@@ -790,6 +805,7 @@ slideShow();
 hidePw();
 applyTheme();
 try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme) } catch (e) { }
+setInterval(() => { if (cur == 'home') tickClock() }, 1000);
 
 Object.assign(window, {
   $, toast, go, back, goHome, navTo, openDrawer, closeDrawer, drawerGo, eye, nextSlide, shareApp,
