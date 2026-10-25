@@ -2,7 +2,7 @@ import {
   watchUser, registerUser, loginUser, googleLogin, logoutUser, resetPassword, updateName,
   resendVerify, reloadUser, setRemember, getProfile, saveProfile,
   ADMIN_EMAIL, watchConfig, saveConfig, createOrder, watchMyOrders, watchAllOrders,
-  adminSet, claimPaid, cancelMine
+  adminSet, claimPaid, cancelMine, watchAnnounce, saveAnnounce
 } from "./firebase-auth.js";
 
 /* ---------- HELPERS ---------- */
@@ -27,6 +27,51 @@ function toast(m) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 2500);
 }
 
+/* ---------- PASSWORD EYE (open = shown, slashed = hidden) ---------- */
+const EYE_ON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+function eye(id) {
+  const input = $(id), s = input.parentNode.querySelector('span');
+  const hidden = input.type == 'password';
+  input.type = hidden ? 'text' : 'password';
+  s.innerHTML = hidden ? EYE_ON : EYE_OFF;
+}
+function hidePw() {
+  document.querySelectorAll('.pw').forEach(w => {
+    w.querySelector('input').type = 'password';
+    w.querySelector('span').innerHTML = EYE_OFF;
+  });
+}
+
+/* ---------- SOUND + VIBRATION ---------- */
+let actx = null;
+function unlockAudio() {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch (e) { }
+}
+document.addEventListener('pointerdown', unlockAudio);
+function beep() {
+  try {
+    unlockAudio();
+    if (actx) {
+      const t = actx.currentTime;
+      [[880, 0], [1175, 0.17]].forEach(([fr, d]) => {
+        const o = actx.createOscillator(), g = actx.createGain();
+        o.type = 'sine'; o.frequency.value = fr;
+        g.gain.setValueAtTime(0.0001, t + d);
+        g.gain.exponentialRampToValueAtTime(0.3, t + d + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.15);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t + d); o.stop(t + d + 0.17);
+      });
+    }
+  } catch (e) { }
+  try { if (navigator.vibrate) navigator.vibrate([150, 80, 150]) } catch (e) { }
+}
+function notify(msg) { beep(); toast(msg) }
+
 const METHODS = [
   ["Pay with Paystack", "Card, Mobile Money, Bank (coming soon)", false],
   ["MTN Mobile Money", "Pay with MTN MoMo", true],
@@ -39,24 +84,28 @@ const RT = {
   "Bank Transfer": "Bank account number"
 };
 const TABS = ["All", "Pending", "Completed", "Cancelled"];
-const ATABS = ["All", "Needs action", "Pending", "Completed", "Cancelled"];
+const ATABS = ["All", "Needs action", "Pending", "Completed", "Cancelled", "Customers"];
 const SLIDES = [
   ["🇬🇭 ⇄ 🇨🇳", "Exchange Made Simple", "Buy Chinese Yuan (CNY) with your Ghana Cedis (GHS) in just a few taps."],
   ["💱", "See your Yuan instantly", "Enter how many Cedis you want to spend and see exactly how much Yuan you will get before you pay."],
   ["📲", "Pay and receive", "Tell us your Alipay, WeChat or bank account, pay with Mobile Money or bank transfer, and we send your Yuan."]
 ];
+const MAILHINT = "\n\nIf you don't see it in your Inbox, check your Spam and Promotions folders (look for an email from firebaseapp.com).";
 const waNum = p => { p = String(p || "").replace(/\D/g, ""); if (p.startsWith("0")) p = "233" + p.slice(1); return p };
 
 /* ---------- STATE ---------- */
-let me = null, profile = {}, cfg = null, method = "MTN Mobile Money", rtype = "Alipay";
+let me = null, profile = {}, cfg = null, ann = null, method = "MTN Mobile Money", rtype = "Alipay";
 let hist = [], cur, pendingAfter = null, tab = "All", atab = "All", slide = 0;
-let openId = null, placing = false, lastPlaced = null;
+let openId = null, placing = false, lastPlaced = null, custCache = [];
 let myOrders = [], allOrders = [], unsubs = [];
+let seenFirstMine = false, lastEvMax = 0, seenFirstAll = false, knownAll = {};
+let seenFirstAnn = false, lastAnnAt = 0;
 
 const isAdmin = () => !!(me && me.email && me.email.toLowerCase() === ADMIN_EMAIL);
 const byTime = (a, b) => (b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 9e12) - (a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 9e12);
 const dt = o => o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString() : "Just now";
 const evTime = o => o.updatedAt && o.updatedAt.seconds ? o.updatedAt.seconds * 1000 : 0;
+const annAt = () => ann && ann.at && ann.at.seconds ? ann.at.seconds * 1000 : 0;
 const makeId = () => {
   const d = new Date();
   return "CYT-" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0') + "-" + String(Date.now()).slice(-6);
@@ -77,6 +126,7 @@ function show(p) {
   $('nav').style.display = ['home', 'orders', 'account'].includes(p) ? 'flex' : 'none';
   document.querySelectorAll('#nav div').forEach(d => d.classList.toggle('a', d.dataset.p == p));
   closeDrawer();
+  if (p == 'login' || p == 'reg') hidePw();
   const r = { home, onb: () => { slide = 0; slideShow() }, buy: calc, recv: recvShow, summary: sum, pay: payShow,
     orders: list, order: orderShow, done: doneShow, notif: notifShow, how: () => { localStorage.howdone = '1' },
     account: acc, personal: personalShow, password: pwShow, admin: adminShow };
@@ -112,7 +162,6 @@ function drawerGo(p) {
   closeDrawer();
   if (['home', 'orders', 'account'].includes(p)) reset(p); else go(p);
 }
-function eye(id) { const i = $(id); i.type = i.type == 'password' ? 'text' : 'password' }
 
 /* ---------- ONBOARDING ---------- */
 function slideShow() {
@@ -144,8 +193,7 @@ async function reg() {
     me = await registerUser(n, e, p);
     profile = { name: n, phone: ph };
     saveProfile(me.uid, profile).catch(() => {});
-    toast('Account created. Check your email to verify.');
-    reset('home');
+    reset('home', () => alert('Account created! We sent a verification link to ' + e + '.' + MAILHINT));
   } catch (x) { err(x) }
 }
 async function login() {
@@ -160,26 +208,53 @@ async function google() {
 async function forgot() {
   const e = $('li').value.trim();
   if (!e.includes('@')) return alert('Type your email in the email box first');
-  try { await resetPassword(e); alert('Password reset link sent to ' + e) } catch (x) { err(x) }
+  try { await resetPassword(e); alert('If an account exists for ' + e + ', a password reset link has been sent.' + MAILHINT) } catch (x) { err(x) }
 }
 async function logout() {
   try { await logoutUser() } catch (x) { err(x); return }
   me = null; profile = {}; clearRecv(); reset('login');
 }
 async function resend() {
-  try { const r = await resendVerify(); toast(r == "verified" ? "Your email is already verified" : "Verification link sent"); home() } catch (x) { err(x) }
+  try {
+    const r = await resendVerify();
+    if (r == "verified") { toast("Your email is already verified"); home() }
+    else alert('Verification link sent to ' + me.email + '.' + MAILHINT);
+  } catch (x) { err(x) }
 }
 async function refreshVerify() {
   try { await reloadUser(); home(); toast(me.emailVerified ? "Email verified. Thank you!" : "Not verified yet. Open the link in your email.") } catch (x) { err(x) }
 }
 
 /* ---------- LIVE DATA ---------- */
-function stopData() { unsubs.forEach(u => u()); unsubs = []; myOrders = []; allOrders = [] }
+function stopData() {
+  unsubs.forEach(u => u()); unsubs = []; myOrders = []; allOrders = [];
+  seenFirstMine = false; lastEvMax = 0; seenFirstAll = false; knownAll = {};
+}
 function startData() {
   stopData();
   if (!me) return;
-  unsubs.push(watchMyOrders(me.uid, l => { myOrders = l.sort(byTime); refreshOrders() }));
-  if (isAdmin()) unsubs.push(watchAllOrders(l => { allOrders = l.sort(byTime); refreshOrders() }));
+  unsubs.push(watchMyOrders(me.uid, l => {
+    myOrders = l.sort(byTime);
+    const mx = l.reduce((a, o) => Math.max(a, evTime(o)), 0);
+    if (seenFirstMine && mx > lastEvMax) notify('🔔 You have an update on your order');
+    lastEvMax = Math.max(lastEvMax, mx); seenFirstMine = true;
+    refreshOrders();
+  }));
+  if (isAdmin()) unsubs.push(watchAllOrders(l => {
+    allOrders = l.sort(byTime);
+    let msg = '';
+    l.forEach(o => {
+      const prev = knownAll[o.id];
+      if (seenFirstAll) {
+        if (prev === undefined && o.status == 'Pending') msg = '🆕 New order received';
+        else if (prev !== undefined && prev != ps(o) && ps(o) == 'Customer says paid' && o.status == 'Pending') msg = '💬 A customer says they have paid';
+      }
+      knownAll[o.id] = ps(o);
+    });
+    seenFirstAll = true;
+    if (msg) notify(msg);
+    refreshOrders();
+  }));
 }
 function refreshOrders() {
   if (cur == 'orders') list();
@@ -198,17 +273,29 @@ watchConfig(c => {
   if (cur == 'pay') payShow();
   if (cur == 'order') orderShow();
 });
+watchAnnounce(a => {
+  ann = a;
+  const at = annAt();
+  if (seenFirstAnn && at > lastAnnAt && a && a.text && !isAdmin()) notify('📢 ' + a.text);
+  lastAnnAt = Math.max(lastAnnAt, at); seenFirstAnn = true;
+  updateBell();
+  if (cur == 'notif') notifShow();
+});
 
 /* ---------- NOTIFICATIONS ---------- */
 const seenKey = () => "seen_" + (me ? me.uid : "x");
 const notifs = () => myOrders.filter(o => o.lastEvent && o.updatedAt).sort((a, b) => evTime(b) - evTime(a));
-const unread = () => notifs().filter(o => evTime(o) > (+localStorage[seenKey()] || 0)).length;
+const unread = () => {
+  const seen = +localStorage[seenKey()] || 0;
+  return notifs().filter(o => evTime(o) > seen).length + ((ann && ann.text && annAt() > seen) ? 1 : 0);
+};
 function updateBell() { const d = $('bdot'); if (d) d.style.display = unread() > 0 ? 'block' : 'none' }
 function notifShow() {
   const l = notifs();
-  $('nl').innerHTML = l.length ? l.map(o => `<div class="card" onclick="openOrder('${o.id}')">
-    <b>${esc(o.lastEvent)}</b><br><small>Order ${esc(o.orderId)} · ${new Date(evTime(o)).toLocaleString()}</small></div>`).join('')
-    : '<p style="text-align:center;color:#888;margin-top:40px">No notifications yet</p>';
+  const annHtml = ann && ann.text ? `<div class="card" style="background:#fff7df"><b>📢 Announcement</b><br>${esc(ann.text)}<br><small>${annAt() ? new Date(annAt()).toLocaleString() : ''}</small></div>` : '';
+  const items = l.map(o => `<div class="card" onclick="openOrder('${o.id}')">
+    <b>${esc(o.lastEvent)}</b><br><small>Order ${esc(o.orderId)} · ${new Date(evTime(o)).toLocaleString()}</small></div>`).join('');
+  $('nl').innerHTML = (annHtml + items) || '<p style="text-align:center;color:#888;margin-top:40px">No notifications yet</p>';
   localStorage[seenKey()] = Date.now();
   updateBell();
 }
@@ -460,7 +547,7 @@ function list() {
 }
 
 /* ---------- ACCOUNT ---------- */
-const ACC = [["Personal Information", "personal"], ["Change Password", "password"], ["How It Works", "how"], ["Invite Friends", "share"], ["Payment Methods", "pmethods"], ["Notifications", "notif"], ["Help & Support", "help"], ["About Us", "about"]];
+const ACC = [["Personal Information", "personal"], ["Change Password", "password"], ["How It Works", "how"], ["Invite Friends", "share"], ["Payment Methods", "pmethods"], ["Notifications", "notif"], ["Help & Support", "help"], ["Terms & Privacy", "terms"], ["About Us", "about"]];
 function acc() {
   $('an').textContent = me ? (me.displayName || 'User') : '';
   $('ae').textContent = me ? me.email : '';
@@ -489,7 +576,7 @@ async function savePersonal() {
   } catch (x) { err(x) }
 }
 async function sendReset() {
-  try { await resetPassword(me.email); alert('Password reset link sent to ' + me.email + '. Check your email.') } catch (x) { err(x) }
+  try { await resetPassword(me.email); alert('A password reset link has been sent to ' + me.email + '.' + MAILHINT) } catch (x) { err(x) }
 }
 
 /* ---------- ADMIN ---------- */
@@ -499,6 +586,7 @@ function adminShow() {
     $('ar').value = cfg.rate; $('af').value = cfg.fee; $('amin').value = cfg.min; $('amax').value = cfg.max;
     $('apay').value = cfg.payInfo || ''; $('aopen').checked = cfg.open !== false;
   } else { $('aopen').checked = true }
+  $('aann').value = ann && ann.text ? ann.text : '';
   adminList();
 }
 async function saveCfg() {
@@ -512,10 +600,22 @@ async function saveCfg() {
     toast('Settings saved. Customers now see 1 GHS = ' + rate + ' CNY');
   } catch (x) { err(x) }
 }
+async function sendAnn() {
+  const t = $('aann').value.trim();
+  if (t.length < 3) return alert('Type your announcement (at least 3 letters).');
+  if (t.length > 200) return alert('Keep it under 200 characters.');
+  if (!confirm('Send this announcement to all customers?')) return;
+  try { await saveAnnounce(t); toast('Announcement sent') } catch (x) { err(x) }
+}
+async function clearAnn() {
+  if (!confirm('Remove the current announcement?')) return;
+  try { await saveAnnounce(''); $('aann').value = ''; toast('Announcement cleared') } catch (x) { err(x) }
+}
 const need = o => o.status == "Pending" && ps(o) == "Customer says paid";
 const TF = {
   "All": () => true, "Needs action": need,
-  "Pending": o => o.status == "Pending", "Completed": o => o.status == "Completed", "Cancelled": o => o.status == "Cancelled"
+  "Pending": o => o.status == "Pending", "Completed": o => o.status == "Completed", "Cancelled": o => o.status == "Cancelled",
+  "Customers": () => true
 };
 function setATab(t) { atab = t; adminList() }
 function payBadge(o) {
@@ -529,6 +629,26 @@ function payBadge(o) {
   if (ps(o) == "Customer says paid") return `<div class="vb wait">💬 Customer says paid${o.customerRef ? ' · ref: <b>' + esc(o.customerRef) + '</b>' : ''}<br>Check your MoMo/bank for GH₵ ${f(total(o))}, then tap Confirm payment.</div>`;
   return `<div class="vb wait">⏳ Waiting for customer to pay GH₵ ${f(total(o))}</div>`;
 }
+function custList(q) {
+  const m = {};
+  allOrders.forEach(o => {
+    const k = o.uid || o.email; if (!k) return;
+    const c = m[k] || (m[k] = { name: o.name, phone: o.phone, email: o.email, n: 0, spent: 0, last: o });
+    c.n++;
+    if (o.status == "Completed") c.spent += total(o);
+  });
+  custCache = Object.values(m)
+    .filter(c => !q || [c.name, c.phone, c.email].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => b.n - a.n);
+  if (!custCache.length) return '<p style="text-align:center;color:#888;margin-top:30px">No customers yet. Customers appear here after their first order.</p>';
+  return `<small>${custCache.length} customer(s) who have placed orders</small>` + custCache.map((c, i) => `<div class="card">
+    <b>👤 ${esc(c.name || '—')}</b><br>
+    <small>${esc(c.phone)} · ${esc(c.email)}<br>${c.n} order(s) · GH₵ ${f(c.spent)} completed<br>Last order: ${dt(c.last)}</small>
+    <div><button class="btn sm o" onclick="waPhone(${i})">💬 WhatsApp</button><button class="btn sm o" onclick="custOrders(${i})">📋 Orders</button></div>
+  </div>`).join('');
+}
+function waPhone(i) { const c = custCache[i]; if (c) window.open("https://wa.me/" + waNum(c.phone), "_blank") }
+function custOrders(i) { const c = custCache[i]; if (!c) return; $('asearch').value = c.email || c.phone || ''; atab = "All"; adminList() }
 function adminList() {
   const today = new Date().toDateString();
   const isToday = o => o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toDateString() == today : true;
@@ -543,6 +663,7 @@ function adminList() {
     stat("Yuan sent", "¥ " + f(done.reduce((a, o) => a + +o.cny, 0))) + '</div>';
   $('atabs').innerHTML = ATABS.map(t => `<b class="${t == atab ? 'a' : ''}" onclick="setATab('${t}')">${t}</b>`).join('');
   const q = ($('asearch').value || '').toLowerCase().trim();
+  if (atab == "Customers") { $('aol').innerHTML = custList(q); return }
   const l = allOrders.filter(o => TF[atab](o) &&
     (!q || [o.name, o.phone, o.email, o.orderId, o.recvName, o.customerRef].join(' ').toLowerCase().includes(q)));
   $('aol').innerHTML = l.length ? l.map(o => {
@@ -634,13 +755,15 @@ $('chips').innerHTML = [200, 500, 1000, 2000, 5000].map(v => `<div class="chip" 
   `<div class="chip" onclick="$('amt').value='';$('amt').focus()">Other</div>`;
 pms();
 slideShow();
+hidePw();
 
 Object.assign(window, {
   $, toast, go, back, goHome, navTo, openDrawer, closeDrawer, drawerGo, eye, nextSlide, shareApp,
   reg, login, google, forgot, logout, resend, refreshVerify,
   home, qcalc, buyFromQuick, dismissHow, calc, setAmt, toRecipient, setRT, toSummary, setMethod, placeOrder,
   setTab, openOrder, iPaid, custCancel, accGo, savePersonal, sendReset,
-  saveCfg, setATab, adminList, copyField, waCust, addNote, confirmPay, completeOrder, adminCancel, markRefunded, exportCsv
+  saveCfg, sendAnn, clearAnn, setATab, adminList, copyField, waCust, waPhone, custOrders, addNote,
+  confirmPay, completeOrder, adminCancel, markRefunded, exportCsv
 });
 
 let first = true;
@@ -648,7 +771,7 @@ watchUser(u => {
   me = u; startData();
   if (u) loadProfile();
   if (first) { first = false; show(u ? 'home' : 'splash') }
-  else if (!u && !['splash', 'onb', 'login', 'reg'].includes(cur)) show('login');
+  else if (!u && !['splash', 'onb', 'login', 'reg', 'terms'].includes(cur)) show('login');
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
