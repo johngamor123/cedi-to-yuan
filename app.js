@@ -27,9 +27,39 @@ function toast(m) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 2500);
 }
 
+/* ---------- NIGHT / DAY MODE ---------- */
+const THEME_LABEL = { auto: "Auto (follows your phone)", light: "Day mode ☀️", dark: "Night mode 🌙" };
+const getTheme = () => localStorage.theme || "auto";
+function applyTheme() {
+  const t = getTheme();
+  const dark = t == "dark" || (t == "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.body.classList.toggle("dark", dark);
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute("content", dark ? "#0a2418" : "#0b6b35");
+  const d = $('dtheme');
+  if (d) d.textContent = dark ? "☀️ Switch to Day mode" : "🌙 Switch to Night mode";
+}
+function setTheme(t) {
+  localStorage.theme = t;
+  applyTheme();
+  if (cur == 'account') acc();
+}
+function cycleTheme() {
+  const order = ["auto", "light", "dark"];
+  const next = order[(order.indexOf(getTheme()) + 1) % 3];
+  setTheme(next);
+  toast("Appearance: " + THEME_LABEL[next]);
+}
+function quickTheme() {
+  const isDark = document.body.classList.contains("dark");
+  setTheme(isDark ? "light" : "dark");
+  toast(isDark ? "Day mode on ☀️" : "Night mode on 🌙");
+  closeDrawer();
+}
+
 /* ---------- PASSWORD EYE (open = shown, slashed = hidden) ---------- */
-const EYE_ON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
-const EYE_OFF = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+const EYE_ON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 function eye(id) {
   const input = $(id), s = input.parentNode.querySelector('span');
   const hidden = input.type == 'password';
@@ -552,9 +582,11 @@ function acc() {
   $('an').textContent = me ? (me.displayName || 'User') : '';
   $('ae').textContent = me ? me.email : '';
   $('adminBtn').style.display = isAdmin() ? 'block' : 'none';
-  $('alist').innerHTML = ACC.map(t => `<div class="row" style="border-bottom:1px solid #eee" onclick="accGo('${t[1]}')"><span>${t[0]}</span><span>›</span></div>`).join('');
+  const items = [ACC[0], ACC[1], ["Appearance: " + THEME_LABEL[getTheme()], "theme"]].concat(ACC.slice(2));
+  $('alist').innerHTML = items.map(t => `<div class="row" style="border-bottom:1px solid #eee" onclick="accGo('${t[1]}')"><span>${t[0]}</span><span>›</span></div>`).join('');
 }
 function accGo(p) {
+  if (p == 'theme') return cycleTheme();
   if (p == 'share') return shareApp();
   if (p == 'pmethods') return alert('You can pay with MTN Mobile Money, AirtelTigo Money or Bank Transfer. Paystack (card) is coming soon.');
   go(p);
@@ -756,9 +788,12 @@ $('chips').innerHTML = [200, 500, 1000, 2000, 5000].map(v => `<div class="chip" 
 pms();
 slideShow();
 hidePw();
+applyTheme();
+try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme) } catch (e) { }
 
 Object.assign(window, {
   $, toast, go, back, goHome, navTo, openDrawer, closeDrawer, drawerGo, eye, nextSlide, shareApp,
+  cycleTheme, quickTheme,
   reg, login, google, forgot, logout, resend, refreshVerify,
   home, qcalc, buyFromQuick, dismissHow, calc, setAmt, toRecipient, setRT, toSummary, setMethod, placeOrder,
   setTab, openOrder, iPaid, custCancel, accGo, savePersonal, sendReset,
