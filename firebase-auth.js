@@ -100,3 +100,10 @@ export const claimPaid = (id, ref) =>
 
 export const cancelMine = id =>
   updateDoc(doc(db, "orders", id), { status: "Cancelled", payStatus: "Cancelled by customer" });
+export const watchAnnounce = cb =>
+  onSnapshot(doc(db, "settings", "announce"),
+    s => cb(s.exists() ? s.data() : null),
+    e => console.error("announce error", e));
+
+export const saveAnnounce = text =>
+  setDoc(doc(db, "settings", "announce"), { text, at: serverTimestamp() });
