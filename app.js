@@ -530,7 +530,7 @@ function orderShow() {
   const o = getOrder(openId);
   if (!o) { $('obody').innerHTML = '<p style="text-align:center;margin-top:40px;color:#888">Loading order...</p>'; return }
   const keep = $('cref') ? $('cref').value : '';
-  const sup = "https://wa.me/233547201547?text=" + encodeURIComponent("Hello CediToYuan, I need help with order " + o.orderId);
+  const sup = "https://wa.me/233598415716?text=" + encodeURIComponent("Hello CediToYuan, I need help with order " + o.orderId);
   let action = '';
   if (o.status == 'Pending') {
     if (ps(o) == 'Awaiting payment') action = payBox(o) +
