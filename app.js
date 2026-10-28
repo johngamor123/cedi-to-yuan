@@ -394,6 +394,9 @@ function toRecipient() {
 }
 
 /* ---------- RECIPIENT ---------- */
+const acctVal = () => { const a = $('racct').value.trim(); return rtype == "Bank Transfer" ? a.replace(/[\s-]/g, '') : a };
+const cnVal = () => $('rcn').value.trim();
+const branchVal = () => $('rbranch').value.trim();
 function setRT(t) { rtype = t; rtView() }
 function rtView() {
   $('rts').innerHTML = Object.keys(RT).map(k => `<div class="pm ${k == rtype ? 'a' : ''}" onclick="setRT('${k}')"><b>${k}</b><span>${k == rtype ? '◉' : '○'}</span></div>`).join('');
@@ -407,19 +410,25 @@ function recvShow() {
   try { last = JSON.parse(localStorage[key] || "null") } catch (e) { }
   if (last && !$('rname').value && !$('racct').value) {
     rtype = last.type; $('rname').value = last.name; $('racct').value = last.acct; $('rbank').value = last.bank || "";
+    $('rbranch').value = last.branch || ""; $('rcn').value = last.cn || "";
   }
   rtView();
   if (!$('rphone').value) $('rphone').value = myPhone();
 }
 function clearRecv() {
-  ['rname', 'racct', 'rbank', 'rphone'].forEach(i => $(i).value = '');
+  ['rname', 'rcn', 'racct', 'rbank', 'rbranch', 'rphone'].forEach(i => $(i).value = '');
   $('rconf').checked = false;
 }
 function toSummary() {
-  const n = $('rname').value.trim(), a = $('racct').value.trim(), b = $('rbank').value.trim(), ph = $('rphone').value.trim();
+  const n = $('rname').value.trim(), a = acctVal(), b = $('rbank').value.trim(), br = branchVal(), cn = cnVal(), ph = $('rphone').value.trim();
   if (n.length < 2) return alert('Enter the full name on your account');
-  if (a.length < 5) return alert('Enter your ' + RT[rtype]);
-  if (rtype == "Bank Transfer" && b.length < 2) return alert('Enter the bank name');
+  if (cn && !/[\u4e00-\u9fff]/.test(cn)) return alert('The Chinese name must be written in Chinese characters. Leave it empty if you do not have it.');
+  if (rtype == "Bank Transfer") {
+    if (!/^\d+$/.test(a)) return alert('The bank account number must contain digits only (no letters or symbols).');
+    if (a.length < 12 || a.length > 25) return alert('The bank account number looks wrong. Chinese bank accounts usually have 12 to 25 digits. Please check it.');
+    if (b.length < 2) return alert('Enter the bank name');
+    if (br.length < 2) return alert('Enter the branch and city where the account was opened');
+  } else if (a.length < 5) return alert('Enter your ' + RT[rtype]);
   if (ph.replace(/\D/g, '').length < 9) return alert('Enter your phone number');
   if (!$('rconf').checked) return alert('Please tick the box to confirm the name matches your account');
   go('summary');
@@ -440,9 +449,10 @@ function sum() {
     <div class="rbox">
      <small>Yuan will be sent to</small><br>
      <b>${esc(rtype)}</b><br>
-     Name: <b>${esc($('rname').value.trim())}</b><br>
-     Account: <b>${esc($('racct').value.trim())}</b>
-     ${rtype == "Bank Transfer" ? `<br>Bank: <b>${esc($('rbank').value.trim())}</b>` : ''}
+     Name: <b>${esc($('rname').value.trim())}</b>
+     ${cnVal() ? `<br>Chinese name: <b>${esc(cnVal())}</b>` : ''}
+     <br>Account: <b>${esc(acctVal())}</b>
+     ${rtype == "Bank Transfer" ? `<br>Bank: <b>${esc($('rbank').value.trim())}</b><br>Branch / city: <b>${esc(branchVal())}</b>` : ''}
     </div>`;
 }
 
@@ -470,13 +480,15 @@ async function placeOrder() {
   $('st2').className = ''; $('st3').className = '';
   setTimeout(() => $('st2').className = 'a', 700);
   setTimeout(() => $('st3').className = 'a', 1400);
+  const isBank = rtype == "Bank Transfer";
   const o = {
     uid: me.uid, name: me.displayName || profile.name || "", email: me.email || "",
     phone: $('rphone').value.trim(), orderId: makeId(), clientTime: Date.now(),
     ghs: g, fee, rate: +cfg.rate, cny: cnyOf(g), method,
     status: "Pending", payStatus: "Awaiting payment",
-    recvType: rtype, recvName: $('rname').value.trim(), recvAcct: $('racct').value.trim(),
-    recvBank: rtype == "Bank Transfer" ? $('rbank').value.trim() : "",
+    recvType: rtype, recvName: $('rname').value.trim(), recvCN: cnVal(), recvAcct: acctVal(),
+    recvBank: isBank ? $('rbank').value.trim() : "",
+    recvBranch: isBank ? branchVal() : "",
     customerRef: "", note: ""
   };
   try {
@@ -485,7 +497,7 @@ async function placeOrder() {
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
     ]);
     if (o.phone) { profile.phone = o.phone; saveProfile(me.uid, { phone: o.phone }).catch(() => {}) }
-    try { localStorage["lastRecv_" + me.uid] = JSON.stringify({ type: rtype, name: o.recvName, acct: o.recvAcct, bank: o.recvBank }) } catch (e) { }
+    try { localStorage["lastRecv_" + me.uid] = JSON.stringify({ type: rtype, name: o.recvName, cn: o.recvCN, acct: o.recvAcct, bank: o.recvBank, branch: o.recvBranch }) } catch (e) { }
     await new Promise(r => setTimeout(r, 1500));
     openId = ref.id; lastPlaced = o;
     clearRecv();
@@ -560,8 +572,11 @@ function orderShow() {
     <div class="orow"><span>Total to pay</span><b>GH₵ ${f(total(o))}</b></div>
     <div class="orow"><span>Pay method</span><b>${esc(o.method)}</b></div>
     <div class="rbox"><small>Yuan sent to</small><br><b>${esc(o.recvType || '—')}</b><br>
-      Name: <b>${esc(o.recvName || '—')}</b><br>Account: <b>${esc(o.recvAcct || '—')}</b>
-      ${o.recvBank ? '<br>Bank: <b>' + esc(o.recvBank) + '</b>' : ''}</div>
+      Name: <b>${esc(o.recvName || '—')}</b>
+      ${o.recvCN ? '<br>Chinese name: <b>' + esc(o.recvCN) + '</b>' : ''}
+      <br>Account: <b>${esc(o.recvAcct || '—')}</b>
+      ${o.recvBank ? '<br>Bank: <b>' + esc(o.recvBank) + '</b>' : ''}
+      ${o.recvBranch ? '<br>Branch / city: <b>' + esc(o.recvBranch) + '</b>' : ''}</div>
   </div>${action}`;
   if ($('cref')) $('cref').value = keep;
 }
@@ -712,7 +727,7 @@ function adminList() {
   const q = ($('asearch').value || '').toLowerCase().trim();
   if (atab == "Customers") { $('aol').innerHTML = custList(q); return }
   const l = allOrders.filter(o => TF[atab](o) &&
-    (!q || [o.name, o.phone, o.email, o.orderId, o.recvName, o.customerRef].join(' ').toLowerCase().includes(q)));
+    (!q || [o.name, o.phone, o.email, o.orderId, o.recvName, o.recvCN, o.customerRef].join(' ').toLowerCase().includes(q)));
   $('aol').innerHTML = l.length ? l.map(o => {
     const bad = Math.abs((+o.cny) - (+o.ghs) * (+o.rate)) > 0.011;
     return `<div class="card">
@@ -722,10 +737,12 @@ function adminList() {
     <small>GH₵ ${f(o.ghs)}${+o.fee > 0 ? ' + fee ' + f(o.fee) : ''} = <b>GH₵ ${f(total(o))}</b> · 1 GHS = ${rateOf(o)} CNY<br>Pay method: ${esc(o.method)}</small>
     <div class="rbox">
       <small>Send Yuan to</small><br><b>${esc(o.recvType || '—')}</b><br>
-      Name: <b>${esc(o.recvName || '—')}</b><br>
-      Account: <b>${esc(o.recvAcct || '—')}</b>
+      Name: <b>${esc(o.recvName || '—')}</b>
+      ${o.recvCN ? `<br>Chinese name: <b>${esc(o.recvCN)}</b>` : ''}
+      <br>Account: <b>${esc(o.recvAcct || '—')}</b>
       ${o.recvBank ? `<br>Bank: <b>${esc(o.recvBank)}</b>` : ''}
-      <div><button class="btn sm o" onclick="copyField('${o.id}','recvName')">Copy name</button><button class="btn sm o" onclick="copyField('${o.id}','recvAcct')">Copy account</button></div>
+      ${o.recvBranch ? `<br>Branch / city: <b>${esc(o.recvBranch)}</b>` : ''}
+      <div><button class="btn sm o" onclick="copyField('${o.id}','recvName')">Copy name</button>${o.recvCN ? `<button class="btn sm o" onclick="copyField('${o.id}','recvCN')">Copy Chinese name</button>` : ''}<button class="btn sm o" onclick="copyField('${o.id}','recvAcct')">Copy account</button></div>
     </div>
     <small>👤 ${esc(o.name)} · ${esc(o.phone)}<br>${esc(o.email)}<br>${esc(o.orderId)}<br>${dt(o)}</small>
     ${o.cancelReason ? `<div class="note">Reason: ${esc(o.cancelReason)}</div>` : ''}
@@ -788,8 +805,8 @@ async function addNote(id) {
   try { await adminSet(id, { note: n.trim() }, false); toast('Note saved') } catch (x) { err(x) }
 }
 function exportCsv() {
-  const rows = [["Date and time","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient account","Bank","Customer ref"]];
-  allOrders.forEach(o => rows.push([dt(o), o.orderId, o.name, o.phone, o.email, o.ghs, o.fee, rateOf(o), o.cny, o.method, o.payStatus || '', o.status, o.recvType || '', o.recvName || '', o.recvAcct || '', o.recvBank || '', o.customerRef || '']));
+  const rows = [["Date and time","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient Chinese name","Recipient account","Bank","Branch / city","Customer ref"]];
+  allOrders.forEach(o => rows.push([dt(o), o.orderId, o.name, o.phone, o.email, o.ghs, o.fee, rateOf(o), o.cny, o.method, o.payStatus || '', o.status, o.recvType || '', o.recvName || '', o.recvCN || '', o.recvAcct || '', o.recvBank || '', o.recvBranch || '', o.customerRef || '']));
   const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(",")).join("\n");
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
