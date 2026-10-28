@@ -166,14 +166,19 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <div class="card">
    <small id="rnlabel">Full name on your account</small>
    <input id="rname" placeholder="Full name exactly as on the account">
+   <small>Name in Chinese characters (optional)</small>
+   <input id="rcn" placeholder="e.g. 张伟 (only if you have it)">
    <small>Account details</small>
    <input id="racct" placeholder="Account">
    <div id="rbankbox" style="display:none">
     <small>Bank name</small>
     <input id="rbank" placeholder="e.g. ICBC, Bank of China">
+    <small>Branch and city (where the account was opened)</small>
+    <input id="rbranch" placeholder="e.g. Pudong Branch, Shanghai">
+    <div class="vb wait" style="margin-top:0">🏦 Bank transfers need the right bank, branch and city. Check your bank app or card if you are not sure.</div>
    </div>
    <small>Your phone number</small>
-   <input id="rphone" type="tel" placeholder="e.g. 0547201547">
+   <input id="rphone" type="tel" placeholder="e.g. 0598415716">
   </div>
   <div class="note">⚠️ The name must match the name on your Alipay, WeChat or bank account exactly. This prevents Yuan from going to the wrong person.</div>
   <label style="display:flex;align-items:center;margin-top:14px;font-size:14px">
@@ -407,7 +412,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <div class="di" onclick="drawerGo('about')">ℹ️ About Us</div>
   <div class="di" onclick="drawerGo('terms')">📄 Terms &amp; Privacy</div>
   <div class="di" id="dadmin" style="display:none" onclick="drawerGo('admin')">⚙ Admin Panel</div>
-   <div class="di" id="dtheme" onclick="quickTheme()">🌙 Switch to Night mode</div>
+  <div class="di" id="dtheme" onclick="quickTheme()">🌙 Switch to Night mode</div>
   <div class="di" style="color:#c0392b" onclick="closeDrawer();logout()">🚪 Log out</div>
   <p class="copy" style="padding:10px 0 24px">© 2026 CediToYuan.<br>All rights reserved.</p>
  </div>
