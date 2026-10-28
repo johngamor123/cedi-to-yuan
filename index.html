@@ -4,6 +4,7 @@
 <meta name="theme-color" content="#0b6b35">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
+<link rel="preload" as="image" href="images/splash.webp">
 <style>
 .btn.sm{width:auto;padding:9px 14px;font-size:14px;margin:10px 8px 0 0}
 .btn.red{background:#c0392b;box-shadow:none}
@@ -43,23 +44,40 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
 <title>CediToYuan</title></head><body>
 
 <!-- SPLASH -->
-<div class="s hero on" id="splash" style="padding:80px 24px 24px">
- <div class="logo">C¥</div>
- <h1 style="font-size:36px;margin-top:14px">CediToYuan</h1>
- <p style="margin-top:6px">Fast • Safe • Reliable</p>
- <p style="margin:30px 0">Your Trusted Partner for<br>Ghana Cedis to Chinese Yuan Exchange</p>
- <div style="font-size:60px">🇬🇭 ➜ 🇨🇳</div>
- <button class="btn y" onclick="go('onb')">Get Started ›</button>
+<div class="s hero on" id="splash">
+ <div class="sp-top">
+  <img class="sp-logo" src="images/logo.webp" width="400" height="400" alt="CediToYuan logo">
+  <h1>CediToYuan</h1>
+  <p class="sp-tag">Fast • Safe • Reliable</p>
+  <p class="sp-line">Your Trusted Partner for<br>Ghana Cedis to Chinese Yuan Exchange</p>
+ </div>
+ <svg class="sp-wave" viewBox="0 0 480 56" preserveAspectRatio="none" aria-hidden="true">
+  <path d="M0 34 C 90 6, 200 58, 480 14 L480 56 L0 56 Z" fill="#fff"/>
+  <path d="M0 34 C 90 6, 200 58, 480 14" fill="none" stroke="#f5b82e" stroke-width="3"/>
+ </svg>
+ <div class="sp-card">
+  <img class="sp-art" src="images/splash.webp" width="1100" height="619" alt="Ghana to China currency exchange">
+  <button class="btn y" onclick="go('onb')">Get Started ›</button>
+ </div>
 </div>
 
 <!-- ONBOARDING (3 slides) -->
-<div class="s" id="onb" style="text-align:center;padding:24px 22px;background:#fff">
- <div style="text-align:right"><b style="color:var(--g)" onclick="go('login')">Skip</b></div>
- <div class="logo" style="background:var(--g);color:#fff;margin-top:14px">C¥</div>
- <div style="font-size:70px;margin-top:30px" id="oe"></div>
- <h1 style="margin-top:20px" id="ot"></h1>
- <p style="color:#555;margin:12px 0 30px;line-height:1.5" id="ox"></p>
- <div style="margin-top:auto">
+<div class="s" id="onb">
+ <div class="on-skip"><b onclick="go('login')">Skip</b></div>
+ <div class="on-brand">
+  <img src="images/logo.webp" width="400" height="400" alt="CediToYuan logo">
+  <b>CediToYuan</b>
+  <small>Fast • Safe • Reliable</small>
+ </div>
+ <h1 id="ot"></h1>
+ <p class="on-x" id="ox"></p>
+ <div class="oart" id="oart"></div>
+ <div class="otrust">
+  <div class="ti"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L16 9.5"/></svg></span><small>Secure<br>Transactions</small></div>
+  <div class="ti"><span><svg width="26" height="26" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" fill="#f5b82e" stroke="#f5b82e" stroke-width="1.5" stroke-linejoin="round"/></svg></span><small>Fast<br>Processing</small></div>
+  <div class="ti"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0116 0v1"/><rect x="3" y="13" width="4" height="6" rx="1.5"/><rect x="17" y="13" width="4" height="6" rx="1.5"/><path d="M19 19v1a3 3 0 01-3 3h-3"/></svg></span><small>24/7<br>Support</small></div>
+ </div>
+ <div class="onfoot">
   <div class="dots" id="odots"></div>
   <button class="btn" id="obtn" onclick="nextSlide()">Next ›</button>
  </div>
@@ -67,7 +85,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
 
 <!-- LOGIN -->
 <div class="s hero" id="login">
- <div style="padding:30px;text-align:center"><div class="logo">C¥</div><h1 style="margin-top:10px">CediToYuan</h1><small>Fast • Safe • Reliable</small></div>
+ <div style="padding:30px;text-align:center"><div class="lgbox"><img src="images/logo.webp" width="400" height="400" alt="CediToYuan logo"></div><h1 style="margin-top:10px">CediToYuan</h1><small>Fast • Safe • Reliable</small></div>
  <div class="sheet">
   <h2 style="text-align:center">Welcome Back</h2><p style="text-align:center;color:#777;margin:6px 0 18px">Login to your account</p>
   <input id="li" type="email" placeholder="✉ Email Address">
@@ -86,7 +104,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
 
 <!-- REGISTER -->
 <div class="s hero" id="reg">
- <div style="padding:30px;text-align:center"><div class="logo">C¥</div><h1 style="margin-top:10px">CediToYuan</h1></div>
+ <div style="padding:30px;text-align:center"><div class="lgbox"><img src="images/logo.webp" width="400" height="400" alt="CediToYuan logo"></div><h1 style="margin-top:10px">CediToYuan</h1></div>
  <div class="sheet">
   <h2 style="text-align:center">Create Account</h2><p style="text-align:center;color:#777;margin:6px 0 18px">Join CediToYuan today</p>
   <input id="rn" placeholder="👤 Full Name">
@@ -316,7 +334,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
  <div class="top"><span onclick="back()">←</span><b>About Us</b><span></span></div>
  <div class="p">
   <div class="card" style="text-align:center">
-   <div class="logo" style="background:var(--g);color:#fff">C¥</div>
+   <div class="lgbox"><img src="images/logo.webp" width="400" height="400" alt="CediToYuan logo"></div>
    <h2 style="margin-top:12px">CediToYuan</h2>
    <small>Fast • Safe • Reliable</small>
   </div>
@@ -325,7 +343,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
    <p style="margin-top:10px">Send Yuan to Alipay, WeChat Pay or a Chinese bank account, with secure processing and support any time.</p>
   </div>
   <button class="btn o" onclick="go('terms')">Terms &amp; Privacy</button>
-  <p class="copy">© 2026 CediToYuan. All rights reserved.<br>Version 2.2</p>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.<br>Version 2.3</p>
  </div>
 </div>
 
@@ -370,7 +388,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
    <small>Maximum order (GH₵)</small>
    <input id="amax" type="number" inputmode="decimal">
    <small>Payment instructions customers will see (MoMo number, name, bank details)</small>
-   <textarea id="apay" rows="4" placeholder="MTN MoMo: 0547201547&#10;Name: John Gamor"></textarea>
+   <textarea id="apay" rows="4" placeholder="MTN MoMo: 0598415716&#10;Name: John Gamor"></textarea>
    <label style="display:flex;align-items:center;font-size:15px;margin-bottom:6px">
     <input type="checkbox" id="aopen" style="width:auto;margin:0 10px 0 0">We are open (accepting orders)
    </label>
@@ -400,7 +418,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
 <!-- SIDE MENU -->
 <div id="drawer" onclick="closeDrawer()">
  <div class="panel" onclick="event.stopPropagation()">
-  <div class="dh"><div class="logo" style="margin:0 0 10px">C¥</div><b id="dn">CediToYuan</b><br><small id="de"></small></div>
+  <div class="dh"><div class="lgbox" style="margin:0 0 10px;width:68px;height:68px"><img style="width:50px;height:50px" src="images/logo.webp" width="400" height="400" alt="CediToYuan logo"></div><b id="dn">CediToYuan</b><br><small id="de"></small></div>
   <div class="di" onclick="drawerGo('home')">🏠 Home</div>
   <div class="di" onclick="drawerGo('buy')">💱 Buy Yuan</div>
   <div class="di" onclick="drawerGo('orders')">📋 My Orders</div>
