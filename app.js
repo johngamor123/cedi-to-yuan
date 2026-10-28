@@ -130,10 +130,15 @@ const RT = {
 const TABS = ["All", "Pending", "Completed", "Cancelled"];
 const ATABS = ["All", "Needs action", "Pending", "Completed", "Cancelled", "Customers"];
 const SLIDES = [
-  ["🇬🇭 ⇄ 🇨🇳", "Exchange Made Simple", "Buy Chinese Yuan (CNY) with your Ghana Cedis (GHS) in just a few taps."],
-  ["💱", "See your Yuan instantly", "Enter how many Cedis you want to spend and see exactly how much Yuan you will get before you pay."],
-  ["📲", "Pay and receive", "Tell us your Alipay, WeChat or bank account, pay with Mobile Money or bank transfer, and we send your Yuan."]
+  { art: "people", t: "Exchange Made Simple", x: "Buy Chinese Yuan (CNY) with your Ghana Cedis (GHS) in just a few taps." },
+  { art: "splash", t: "See your Yuan instantly", x: "Enter how many Cedis you want to spend and see exactly how much Yuan you will get before you pay." },
+  { art: "flow", t: "Pay and receive", x: "Tell us your Alipay, WeChat or bank account, pay with Mobile Money or bank transfer, and we send your Yuan." }
 ];
+const ART = {
+  people: '<img class="art-people" src="images/people.webp" width="1100" height="733" alt="A Ghanaian man and a Chinese woman exchanging currency on their phones">',
+  splash: '<div class="art-card"><img src="images/splash.webp" width="1100" height="619" alt="Cedi to Yuan exchange"></div>',
+  flow: '<div class="flow"><div><i>📲</i><small>Place order</small></div><b>›</b><div><i>💳</i><small>Pay</small></div><b>›</b><div><i>🇨🇳</i><small>Get Yuan</small></div></div>'
+};
 const MAILHINT = "\n\nIf you don't see it in your Inbox, check your Spam and Promotions folders (look for an email from firebaseapp.com).";
 const waNum = p => { p = String(p || "").replace(/\D/g, ""); if (p.startsWith("0")) p = "233" + p.slice(1); return p };
 
@@ -210,7 +215,9 @@ function drawerGo(p) {
 /* ---------- ONBOARDING ---------- */
 function slideShow() {
   const s = SLIDES[slide];
-  $('oe').textContent = s[0]; $('ot').textContent = s[1]; $('ox').textContent = s[2];
+  $('oart').innerHTML = ART[s.art];
+  $('ot').textContent = s.t;
+  $('ox').textContent = s.x;
   $('odots').innerHTML = SLIDES.map((_, i) => `<i class="${i == slide ? 'a' : ''}"></i>`).join('');
   $('obtn').textContent = slide < SLIDES.length - 1 ? 'Next ›' : 'Continue ›';
 }
