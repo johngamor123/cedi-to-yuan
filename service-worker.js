@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "cedi-to-yuan-shell-v17";
+const CACHE_NAME = "cedi-to-yuan-shell-v18";
 
 const APP_FILES = [
   "./",
