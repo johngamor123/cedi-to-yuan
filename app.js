@@ -2,7 +2,7 @@ import {
   watchUser, registerUser, loginUser, googleLogin, logoutUser, resetPassword, updateName,
   resendVerify, reloadUser, setRemember, getProfile, saveProfile,
   ADMIN_EMAIL, watchConfig, saveConfig, createOrder, watchMyOrders, watchAllOrders,
-  adminSet, claimPaid, cancelMine, watchAnnounce, saveAnnounce
+  adminSet, claimPaid, cancelMine, watchAnnounce, saveAnnounce, saveQR, getQR
 } from "./firebase-auth.js";
 
 /* ---------- HELPERS ---------- */
@@ -127,6 +127,7 @@ const RT = {
   "WeChat Pay": "WeChat ID or phone number",
   "Bank Transfer": "Bank account number"
 };
+const QR_TYPES = ["Alipay", "WeChat Pay"];
 const TABS = ["All", "Pending", "Completed", "Cancelled"];
 const ATABS = ["All", "Needs action", "Pending", "Completed", "Cancelled", "Customers"];
 const SLIDES = [
@@ -149,6 +150,7 @@ let openId = null, placing = false, lastPlaced = null, custCache = [];
 let myOrders = [], allOrders = [], unsubs = [];
 let seenFirstMine = false, lastEvMax = 0, seenFirstAll = false, knownAll = {};
 let seenFirstAnn = false, lastAnnAt = 0;
+let qrData = null, qrTouched = false, qrFromSaved = false;
 
 const isAdmin = () => !!(me && me.email && me.email.toLowerCase() === ADMIN_EMAIL);
 const byTime = (a, b) => (b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 9e12) - (a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 9e12);
@@ -171,6 +173,7 @@ const ps = o => o.payStatus || "Awaiting payment";
 /* ---------- NAVIGATION (phone Back button works) ---------- */
 function show(p) {
   cur = p;
+  qrClose();
   document.querySelectorAll('.s').forEach(e => e.classList.toggle('on', e.id == p));
   $('nav').style.display = ['home', 'orders', 'account'].includes(p) ? 'flex' : 'none';
   document.querySelectorAll('#nav div').forEach(d => d.classList.toggle('a', d.dataset.p == p));
@@ -400,16 +403,98 @@ function toRecipient() {
   go('recv');
 }
 
+/* ---------- QR CODE (shrunk on the phone, stored free in the database) ---------- */
+const qrKey = () => "qr_" + (me ? me.uid : "x") + "_" + rtype;
+function qrLoadSaved() {
+  qrData = null; qrFromSaved = false;
+  if (QR_TYPES.includes(rtype)) {
+    try { const s = localStorage[qrKey()]; if (s) { qrData = s; qrFromSaved = true } } catch (e) { }
+  }
+}
+function qrView() {
+  const on = QR_TYPES.includes(rtype);
+  $('qrbox').style.display = on ? 'block' : 'none';
+  if (!on) return;
+  $('qrname').textContent = rtype;
+  $('qrprev').style.display = qrData ? 'block' : 'none';
+  if (qrData) {
+    $('qrimg').src = qrData;
+    $('qrnote').textContent = qrFromSaved ? 'Saved from your last order' : 'Ready to send with your order';
+  }
+  $('qrbtn').textContent = qrData ? '🔄 Change QR code' : '📷 Upload QR code';
+}
+function shrinkImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let max = 900, q = 0.85, out = '';
+        for (let i = 0; i < 8; i++) {
+          const sc = Math.min(1, max / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * sc)), h = Math.max(1, Math.round(img.height * sc));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          out = c.toDataURL('image/jpeg', q);
+          if (out.length <= 230000) break;
+          max = Math.round(max * 0.85); q = Math.max(0.5, q - 0.08);
+        }
+        URL.revokeObjectURL(url);
+        if (out.length > 330000) reject(new Error('too big')); else resolve(out);
+      } catch (e) { reject(e) }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad image')) };
+    img.src = url;
+  });
+}
+async function qrPicked(inp) {
+  const file = inp.files && inp.files[0];
+  inp.value = '';
+  if (!file) return;
+  if (!/^image\//.test(file.type)) return alert('Please choose a picture (a screenshot or photo of your QR code).');
+  toast('Preparing your QR code...');
+  try {
+    qrData = await shrinkImage(file);
+    qrTouched = true; qrFromSaved = false;
+    qrView(); toast('QR code added');
+  } catch (e) {
+    console.error(e);
+    alert('We could not read that picture. Please try another screenshot or photo of your QR code.');
+  }
+}
+function qrRemove() {
+  qrData = null; qrTouched = true; qrFromSaved = false;
+  try { localStorage.removeItem(qrKey()) } catch (e) { }
+  qrView();
+}
+async function viewQR(id) {
+  const o = findAll(id); if (!o) return;
+  $('qrview').classList.add('on');
+  $('qrstatus').textContent = 'Loading QR code...';
+  $('qrfull').style.display = 'none'; $('qrdl').style.display = 'none';
+  try {
+    const q = await getQR(id);
+    if (!q || !q.img) { $('qrstatus').textContent = 'QR code not received. Ask the customer to send it on WhatsApp.'; return }
+    $('qrstatus').textContent = (q.type || 'QR code') + ' · ' + (o.recvName || '');
+    $('qrfull').src = q.img; $('qrfull').style.display = 'block';
+    $('qrdl').href = q.img; $('qrdl').download = 'qr-' + (o.orderId || id) + '.jpg'; $('qrdl').style.display = 'block';
+  } catch (x) { console.error(x); $('qrstatus').textContent = 'Could not load the QR code.' }
+}
+function qrClose() { const v = $('qrview'); if (v) v.classList.remove('on') }
+
 /* ---------- RECIPIENT ---------- */
 const acctVal = () => { const a = $('racct').value.trim(); return rtype == "Bank Transfer" ? a.replace(/[\s-]/g, '') : a };
 const cnVal = () => $('rcn').value.trim();
 const branchVal = () => $('rbranch').value.trim();
-function setRT(t) { rtype = t; rtView() }
+function setRT(t) { rtype = t; qrTouched = false; qrLoadSaved(); rtView() }
 function rtView() {
   $('rts').innerHTML = Object.keys(RT).map(k => `<div class="pm ${k == rtype ? 'a' : ''}" onclick="setRT('${k}')"><b>${k}</b><span>${k == rtype ? '◉' : '○'}</span></div>`).join('');
   $('racct').placeholder = RT[rtype];
   $('rbankbox').style.display = rtype == "Bank Transfer" ? 'block' : 'none';
   $('rnlabel').textContent = "Full name on your " + rtype + " account";
+  qrView();
 }
 function recvShow() {
   const key = "lastRecv_" + (me ? me.uid : "x");
@@ -419,12 +504,14 @@ function recvShow() {
     rtype = last.type; $('rname').value = last.name; $('racct').value = last.acct; $('rbank').value = last.bank || "";
     $('rbranch').value = last.branch || ""; $('rcn').value = last.cn || "";
   }
+  if (!qrTouched) qrLoadSaved();
   rtView();
   if (!$('rphone').value) $('rphone').value = myPhone();
 }
 function clearRecv() {
   ['rname', 'rcn', 'racct', 'rbank', 'rbranch', 'rphone'].forEach(i => $(i).value = '');
   $('rconf').checked = false;
+  qrData = null; qrTouched = false; qrFromSaved = false;
 }
 function toSummary() {
   const n = $('rname').value.trim(), a = acctVal(), b = $('rbank').value.trim(), br = branchVal(), cn = cnVal(), ph = $('rphone').value.trim();
@@ -460,6 +547,7 @@ function sum() {
      ${cnVal() ? `<br>Chinese name: <b>${esc(cnVal())}</b>` : ''}
      <br>Account: <b>${esc(acctVal())}</b>
      ${rtype == "Bank Transfer" ? `<br>Bank: <b>${esc($('rbank').value.trim())}</b><br>Branch / city: <b>${esc(branchVal())}</b>` : ''}
+     ${QR_TYPES.includes(rtype) && qrData ? '<br>QR code: <b>attached ✅</b>' : ''}
     </div>`;
 }
 
@@ -488,6 +576,8 @@ async function placeOrder() {
   setTimeout(() => $('st2').className = 'a', 700);
   setTimeout(() => $('st3').className = 'a', 1400);
   const isBank = rtype == "Bank Transfer";
+  const withQR = QR_TYPES.includes(rtype) && !!qrData;
+  const sendType = rtype, sendQR = qrData, sendKey = qrKey();
   const o = {
     uid: me.uid, name: me.displayName || profile.name || "", email: me.email || "",
     phone: $('rphone').value.trim(), orderId: makeId(), clientTime: Date.now(),
@@ -496,20 +586,34 @@ async function placeOrder() {
     recvType: rtype, recvName: $('rname').value.trim(), recvCN: cnVal(), recvAcct: acctVal(),
     recvBank: isBank ? $('rbank').value.trim() : "",
     recvBranch: isBank ? branchVal() : "",
+    hasQR: withQR,
     customerRef: "", note: ""
   };
+  let qrNote = '';
   try {
     const ref = await Promise.race([
       createOrder(o),
       new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000))
     ]);
+    if (withQR) {
+      try {
+        await Promise.race([
+          saveQR(ref.id, { uid: me.uid, orderId: o.orderId, type: sendType, img: sendQR }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000))
+        ]);
+        try { localStorage[sendKey] = sendQR } catch (e) { }
+      } catch (x) {
+        console.error(x);
+        qrNote = 'Your order was placed, but we could not upload your QR code. Please send the QR code to us on WhatsApp (0598415716).';
+      }
+    }
     if (o.phone) { profile.phone = o.phone; saveProfile(me.uid, { phone: o.phone }).catch(() => {}) }
     try { localStorage["lastRecv_" + me.uid] = JSON.stringify({ type: rtype, name: o.recvName, cn: o.recvCN, acct: o.recvAcct, bank: o.recvBank, branch: o.recvBranch }) } catch (e) { }
     await new Promise(r => setTimeout(r, 1500));
     openId = ref.id; lastPlaced = o;
     clearRecv();
     if (navigator.vibrate) navigator.vibrate(60);
-    reset('home', () => go('done'));
+    reset('home', () => { go('done'); if (qrNote) setTimeout(() => alert(qrNote), 400) });
   } catch (x) {
     console.error(x);
     alert(x.code == 'permission-denied'
@@ -583,7 +687,8 @@ function orderShow() {
       ${o.recvCN ? '<br>Chinese name: <b>' + esc(o.recvCN) + '</b>' : ''}
       <br>Account: <b>${esc(o.recvAcct || '—')}</b>
       ${o.recvBank ? '<br>Bank: <b>' + esc(o.recvBank) + '</b>' : ''}
-      ${o.recvBranch ? '<br>Branch / city: <b>' + esc(o.recvBranch) + '</b>' : ''}</div>
+      ${o.recvBranch ? '<br>Branch / city: <b>' + esc(o.recvBranch) + '</b>' : ''}
+      ${o.hasQR ? '<br>QR code: <b>sent</b>' : ''}</div>
   </div>${action}`;
   if ($('cref')) $('cref').value = keep;
 }
@@ -749,7 +854,8 @@ function adminList() {
       <br>Account: <b>${esc(o.recvAcct || '—')}</b>
       ${o.recvBank ? `<br>Bank: <b>${esc(o.recvBank)}</b>` : ''}
       ${o.recvBranch ? `<br>Branch / city: <b>${esc(o.recvBranch)}</b>` : ''}
-      <div><button class="btn sm o" onclick="copyField('${o.id}','recvName')">Copy name</button>${o.recvCN ? `<button class="btn sm o" onclick="copyField('${o.id}','recvCN')">Copy Chinese name</button>` : ''}<button class="btn sm o" onclick="copyField('${o.id}','recvAcct')">Copy account</button></div>
+      ${o.hasQR ? `<br>QR code: <b>attached</b>` : ''}
+      <div><button class="btn sm o" onclick="copyField('${o.id}','recvName')">Copy name</button>${o.recvCN ? `<button class="btn sm o" onclick="copyField('${o.id}','recvCN')">Copy Chinese name</button>` : ''}<button class="btn sm o" onclick="copyField('${o.id}','recvAcct')">Copy account</button>${o.hasQR ? `<button class="btn sm" onclick="viewQR('${o.id}')">🔳 View QR</button>` : ''}</div>
     </div>
     <small>👤 ${esc(o.name)} · ${esc(o.phone)}<br>${esc(o.email)}<br>${esc(o.orderId)}<br>${dt(o)}</small>
     ${o.cancelReason ? `<div class="note">Reason: ${esc(o.cancelReason)}</div>` : ''}
@@ -812,8 +918,8 @@ async function addNote(id) {
   try { await adminSet(id, { note: n.trim() }, false); toast('Note saved') } catch (x) { err(x) }
 }
 function exportCsv() {
-  const rows = [["Date and time","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient Chinese name","Recipient account","Bank","Branch / city","Customer ref"]];
-  allOrders.forEach(o => rows.push([dt(o), o.orderId, o.name, o.phone, o.email, o.ghs, o.fee, rateOf(o), o.cny, o.method, o.payStatus || '', o.status, o.recvType || '', o.recvName || '', o.recvCN || '', o.recvAcct || '', o.recvBank || '', o.recvBranch || '', o.customerRef || '']));
+  const rows = [["Date and time","Order ID","Name","Phone","Email","GHS","Fee","Rate (CNY per GHS)","CNY","Pay method","Payment status","Status","Recipient type","Recipient name","Recipient Chinese name","Recipient account","Bank","Branch / city","QR attached","Customer ref"]];
+  allOrders.forEach(o => rows.push([dt(o), o.orderId, o.name, o.phone, o.email, o.ghs, o.fee, rateOf(o), o.cny, o.method, o.payStatus || '', o.status, o.recvType || '', o.recvName || '', o.recvCN || '', o.recvAcct || '', o.recvBank || '', o.recvBranch || '', o.hasQR ? 'Yes' : 'No', o.customerRef || '']));
   const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(",")).join("\n");
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
@@ -836,6 +942,7 @@ Object.assign(window, {
   cycleTheme, quickTheme,
   reg, login, google, forgot, logout, resend, refreshVerify,
   home, qcalc, buyFromQuick, dismissHow, calc, setAmt, toRecipient, setRT, toSummary, setMethod, placeOrder,
+  qrPicked, qrRemove, viewQR, qrClose,
   setTab, openOrder, iPaid, custCancel, accGo, savePersonal, sendReset,
   saveCfg, sendAnn, clearAnn, setATab, adminList, copyField, waCust, waPhone, custOrders, addNote,
   confirmPay, completeOrder, adminCancel, markRefunded, exportCsv
