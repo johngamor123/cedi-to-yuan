@@ -198,6 +198,17 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
    <small>Your phone number</small>
    <input id="rphone" type="tel" placeholder="e.g. 0598415716">
   </div>
+  <div class="card" id="qrbox" style="display:none">
+   <b>🔳 Your QR code (optional)</b>
+   <p style="font-size:13px;color:#777;margin:6px 0 10px">Upload your <span id="qrname">Alipay</span> receiving QR code (a screenshot or photo) so we can scan it and pay the right account. You can skip this.</p>
+   <div id="qrprev" style="display:none;text-align:center;margin-bottom:10px">
+    <img id="qrimg" class="qrimg" alt="Your QR code">
+    <small id="qrnote" style="display:block;margin-top:6px"></small>
+    <button class="btn sm o red-o" onclick="qrRemove()">Remove</button>
+   </div>
+   <label class="btn o" for="rqr" id="qrbtn" style="display:block;text-align:center;margin-top:0">📷 Upload QR code</label>
+   <input type="file" id="rqr" accept="image/*" style="display:none" onchange="qrPicked(this)">
+  </div>
   <div class="note">⚠️ The name must match the name on your Alipay, WeChat or bank account exactly. This prevents Yuan from going to the wrong person.</div>
   <label style="display:flex;align-items:center;margin-top:14px;font-size:14px">
    <input type="checkbox" id="rconf" style="width:auto;margin:0 10px 0 0">I confirm the name and account are correct
@@ -270,7 +281,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <div class="card" style="text-align:center"><div style="font-size:44px">💱</div><h3>Buy Yuan in 5 easy steps</h3></div>
   <div class="card step"><i>1</i><div><b>Check today's rate</b><br><small>The Home screen shows how many Yuan you get for 1 Cedi. Use the quick calculator to try any amount.</small></div></div>
   <div class="card step"><i>2</i><div><b>Enter your amount</b><br><small>Tap Buy Yuan, type how many Cedis you want to spend, or pick a quick amount. You see the Yuan you will get.</small></div></div>
-  <div class="card step"><i>3</i><div><b>Add where to send your Yuan</b><br><small>Choose Alipay, WeChat Pay or a Chinese bank. Write the full name exactly as it is on that account so your money goes to the right person.</small></div></div>
+  <div class="card step"><i>3</i><div><b>Add where to send your Yuan</b><br><small>Choose Alipay, WeChat Pay or a Chinese bank. Write the full name exactly as it is on that account so your money goes to the right person. For Alipay and WeChat you can also upload your QR code (optional).</small></div></div>
   <div class="card step"><i>4</i><div><b>Place your order and pay</b><br><small>Pay with Mobile Money or bank transfer using the payment details we show you. Then type your transaction ID and tap "I Have Paid".</small></div></div>
   <div class="card step"><i>5</i><div><b>We confirm and send</b><br><small>We confirm your payment and send your Yuan. You get a notification 🔔 and can follow every step in My Orders.</small></div></div>
   <h3 style="margin:16px 0 8px">Questions</h3>
@@ -343,7 +354,7 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
    <p style="margin-top:10px">Send Yuan to Alipay, WeChat Pay or a Chinese bank account, with secure processing and support any time.</p>
   </div>
   <button class="btn o" onclick="go('terms')">Terms &amp; Privacy</button>
-  <p class="copy">© 2026 CediToYuan. All rights reserved.<br>Version 2.3</p>
+  <p class="copy">© 2026 CediToYuan. All rights reserved.<br>Version 2.4</p>
  </div>
 </div>
 
@@ -362,9 +373,9 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   </div>
   <div class="card">
    <h3 style="margin-bottom:8px">Privacy Policy</h3>
-   <p>We collect your name, email, phone number, the receiving account details you enter (Alipay, WeChat or bank), and your order history.</p>
+   <p>We collect your name, email, phone number, the receiving account details you enter (Alipay, WeChat or bank), the QR code picture if you choose to upload one, and your order history.</p>
    <p>We use this information to process your orders, confirm payments, contact you about your orders and give you support.</p>
-   <p>Your data is stored securely with Google Firebase. We do not sell your personal data. We share receiving details only as needed to complete your order.</p>
+   <p>Your data is stored securely with Google Firebase. We do not sell your personal data. We share receiving details only as needed to complete your order. Your QR code picture can only be opened by you and by us.</p>
    <p>To correct or delete your information, contact us on 0598415716.</p>
    <small>Last updated: October 2026</small>
   </div>
@@ -433,6 +444,16 @@ textarea{width:100%;padding:14px;border:1px solid #d5ddd8;border-radius:10px;fon
   <div class="di" id="dtheme" onclick="quickTheme()">🌙 Switch to Night mode</div>
   <div class="di" style="color:#c0392b" onclick="closeDrawer();logout()">🚪 Log out</div>
   <p class="copy" style="padding:10px 0 24px">© 2026 CediToYuan.<br>All rights reserved.</p>
+ </div>
+</div>
+
+<!-- QR VIEWER (admin) -->
+<div id="qrview" onclick="qrClose()">
+ <div class="qrwrap" onclick="event.stopPropagation()">
+  <div id="qrstatus"></div>
+  <img id="qrfull" alt="QR code">
+  <a id="qrdl" class="btn y" download="qr-code.jpg" style="display:none">⬇ Save image</a>
+  <button class="btn o" onclick="qrClose()">Close</button>
  </div>
 </div>
 
