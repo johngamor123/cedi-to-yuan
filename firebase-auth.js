@@ -100,6 +100,17 @@ export const claimPaid = (id, ref) =>
 
 export const cancelMine = id =>
   updateDoc(doc(db, "orders", id), { status: "Cancelled", payStatus: "Cancelled by customer" });
+
+/* ---------- QR CODES (private, one per order) ---------- */
+export const saveQR = (id, data) =>
+  setDoc(doc(db, "qrcodes", id), { ...data, createdAt: serverTimestamp() });
+
+export const getQR = async id => {
+  const s = await getDoc(doc(db, "qrcodes", id));
+  return s.exists() ? s.data() : null;
+};
+
+/* ---------- ANNOUNCEMENT ---------- */
 export const watchAnnounce = cb =>
   onSnapshot(doc(db, "settings", "announce"),
     s => cb(s.exists() ? s.data() : null),
